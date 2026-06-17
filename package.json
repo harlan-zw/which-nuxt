@@ -1,0 +1,73 @@
+{
+  "name": "which-nuxt",
+  "type": "module",
+  "version": "0.1.1",
+  "packageManager": "pnpm@11.5.2",
+  "description": "Detect Nuxt, Vue and Nuxt-related package versions from public Nuxt sites.",
+  "author": {
+    "name": "Harlan Wilton",
+    "email": "harlan@harlanzw.com",
+    "url": "https://harlanzw.com/"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/harlan-zw/which-nuxt"
+  },
+  "keywords": [
+    "nuxt",
+    "vue",
+    "detect",
+    "security",
+    "advisory"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "bin": {
+    "whichnuxt": "./dist/cli-entry.mjs",
+    "which-nuxt": "./dist/cli-entry.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "build": "obuild",
+    "dev:prepare": "obuild --stub",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:attw": "attw --pack",
+    "prepack": "pnpm run build"
+  },
+  "dependencies": {
+    "citty": "catalog:",
+    "consola": "catalog:",
+    "defu": "catalog:",
+    "ofetch": "catalog:",
+    "ohash": "catalog:",
+    "semver": "catalog:",
+    "tldts": "catalog:",
+    "ufo": "catalog:",
+    "ultrahtml": "catalog:",
+    "unstorage": "catalog:"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "catalog:",
+    "@arethetypeswrong/cli": "catalog:",
+    "@types/node": "catalog:",
+    "@types/semver": "catalog:",
+    "eslint": "catalog:",
+    "obuild": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
