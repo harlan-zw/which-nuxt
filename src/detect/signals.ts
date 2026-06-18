@@ -2,6 +2,16 @@ import type { DetectedModule, DetectedPackage, DetectionSignal, DetectionSource 
 
 export const NUXT_CONFIDENCE_THRESHOLD = 5
 
+export interface DetectionEvidence {
+  signals: DetectionSignal[]
+  packages: DetectedPackage[]
+  modules: DetectedModule[]
+  addSignal: (name: string, weight: number, source: DetectionSource, description?: string) => void
+  emitPackage: (pkg: DetectedPackage) => void
+  emitModule: (module: DetectedModule) => void
+  merge: (evidence: Partial<Pick<DetectionEvidence, 'signals' | 'packages' | 'modules'>>) => void
+}
+
 export function addSignal(
   signals: DetectionSignal[],
   name: string,
@@ -84,4 +94,27 @@ export function upsertModule(
 
   if (candidate.version || CERTAINTY_SCORE[candidate.certainty] >= CERTAINTY_SCORE[existing.certainty])
     existing.source = candidate.source
+}
+
+export function createDetectionEvidence(): DetectionEvidence {
+  const signals: DetectionSignal[] = []
+  const packages: DetectedPackage[] = []
+  const modules: DetectedModule[] = []
+
+  return {
+    signals,
+    packages,
+    modules,
+    addSignal: (name, weight, source, description) => addSignal(signals, name, weight, source, description),
+    emitPackage: pkg => upsertPackage(packages, pkg),
+    emitModule: module => upsertModule(modules, module),
+    merge(evidence) {
+      for (const signal of evidence.signals || [])
+        addSignal(signals, signal.name, signal.weight, signal.source, signal.description)
+      for (const pkg of evidence.packages || [])
+        upsertPackage(packages, pkg)
+      for (const module of evidence.modules || [])
+        upsertModule(modules, module)
+    },
+  }
 }

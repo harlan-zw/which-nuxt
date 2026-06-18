@@ -1,5 +1,6 @@
 import type { DetectOptions, DomainAgeResult, HostingProviderSignal, HostingResult } from '../types.ts'
 import { parse as parseDomain } from 'tldts'
+import { fetchRdapJson } from '../request.ts'
 
 const CLOUDFLARE_RE = /\bcloudflare\b/i
 const VERCEL_RE = /\bvercel\b/i
@@ -90,40 +91,23 @@ async function fetchDomainAge(url: string, options: DetectOptions): Promise<Doma
   if (!domain)
     return null
 
-  const fetcher = options.fetch || globalThis.fetch
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), options.timeout ?? 8000)
+  const data = await fetchRdapJson(`https://rdap.org/domain/${domain}`, options) as any
+  if (!data)
+    return null
 
-  try {
-    const response = await fetcher(`https://rdap.org/domain/${domain}`, {
-      signal: controller.signal,
-      headers: {
-        'accept': 'application/rdap+json, application/json',
-        'user-agent': options.userAgent || 'which-nuxt/0.0.0',
-      },
-    })
+  const createdAt = createdEvent(data.events || [])?.eventDate || null
+  const ageDays = createdAt
+    ? Math.floor((Date.now() - new Date(createdAt).getTime()) / 86_400_000)
+    : null
 
-    if (!response.ok)
-      return null
-
-    const data = await response.json() as any
-    const createdAt = createdEvent(data.events || [])?.eventDate || null
-    const ageDays = createdAt
-      ? Math.floor((Date.now() - new Date(createdAt).getTime()) / 86_400_000)
-      : null
-
-    return {
-      domain,
-      createdAt,
-      ageDays,
-      registrar: registrarName(data.entities || []),
-      nameservers: (data.nameservers || [])
-        .map((nameserver: any) => nameserver.ldhName || nameserver.unicodeName)
-        .filter((value: unknown): value is string => typeof value === 'string'),
-    }
-  }
-  finally {
-    clearTimeout(timer)
+  return {
+    domain,
+    createdAt,
+    ageDays,
+    registrar: registrarName(data.entities || []),
+    nameservers: (data.nameservers || [])
+      .map((nameserver: any) => nameserver.ldhName || nameserver.unicodeName)
+      .filter((value: unknown): value is string => typeof value === 'string'),
   }
 }
 

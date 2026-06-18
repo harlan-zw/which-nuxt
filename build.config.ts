@@ -6,6 +6,9 @@ export default defineBuildConfig({
       type: 'bundle',
       input: [
         './src/index.ts',
+        './src/modules/index.ts',
+        './src/modules/official.ts',
+        './src/modules/community.ts',
         './src/cli-entry.ts',
       ],
     },

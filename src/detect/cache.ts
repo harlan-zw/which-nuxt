@@ -21,6 +21,16 @@ function inputFingerprint(input: DetectInput, options: DetectOptions) {
   }
 }
 
+function moduleDetectorFingerprint(options: DetectOptions) {
+  if (options.moduleDetectors === false)
+    return false
+
+  if (options.moduleDetectors)
+    return options.moduleDetectors.map(detector => `${detector.collection}:${detector.name}`)
+
+  return 'default'
+}
+
 export function createDetectCacheKey(input: DetectInput, options: DetectOptions) {
   const namespace = options.cacheNamespace || 'which-nuxt:detect'
   const key = hash({
@@ -33,6 +43,7 @@ export function createDetectCacheKey(input: DetectInput, options: DetectOptions)
       maxJsBytes: options.maxJsBytes,
       hosting: options.hosting,
       domainAge: options.domainAge,
+      moduleDetectors: moduleDetectorFingerprint(options),
     },
   })
   return `${namespace}:${key}`

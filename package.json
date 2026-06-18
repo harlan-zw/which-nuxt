@@ -1,7 +1,7 @@
 {
   "name": "which-nuxt",
   "type": "module",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "packageManager": "pnpm@11.5.2",
   "description": "Detect Nuxt, Vue and Nuxt-related package versions from public Nuxt sites.",
   "author": {
@@ -21,10 +21,23 @@
     "security",
     "advisory"
   ],
+  "sideEffects": false,
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
+    },
+    "./modules": {
+      "types": "./dist/modules/index.d.mts",
+      "import": "./dist/modules/index.mjs"
+    },
+    "./modules/official": {
+      "types": "./dist/modules/official.d.mts",
+      "import": "./dist/modules/official.mjs"
+    },
+    "./modules/community": {
+      "types": "./dist/modules/community.d.mts",
+      "import": "./dist/modules/community.mjs"
     }
   },
   "bin": {
@@ -45,7 +58,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:attw": "attw --pack",
+    "test:attw": "attw --pack --profile esm-only",
     "prepack": "pnpm run build"
   },
   "dependencies": {

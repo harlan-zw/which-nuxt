@@ -1,12 +1,13 @@
-import type { DetectedModule, DetectedPackage, DetectInput, DetectOptions, DetectResult } from '../types.ts'
+import type { DetectInput, DetectOptions, DetectResult, ModuleDetectorPreset } from '../types.ts'
 import { defu } from 'defu'
+import { fetchTargetScriptText, fetchTargetText } from '../request.ts'
 import { createDetectCacheArtifact, createDetectCacheKey, readDetectCacheArtifact } from './cache.ts'
 import { probeNuxtEndpoints } from './endpoints.ts'
-import { fetchScriptText, fetchText } from './fetch.ts'
+import { scanHeaders } from './headers.ts'
 import { analyzeHosting } from './hosting.ts'
 import { scanHtml } from './html.ts'
 import { scanJs } from './js.ts'
-import { mergeSignals, NUXT_CONFIDENCE_THRESHOLD, signalConfidence, upsertModule, upsertPackage } from './signals.ts'
+import { createDetectionEvidence, NUXT_CONFIDENCE_THRESHOLD, signalConfidence } from './signals.ts'
 
 const HTTP_URL_RE = /^https?:\/\//i
 
@@ -27,7 +28,7 @@ async function resolveInput(input: DetectInput, options: DetectOptions) {
 
   const url = input instanceof URL ? input.toString() : input
   if (typeof url === 'string' && isUrl(url)) {
-    const response = await fetchText(url, options)
+    const response = await fetchTargetText(url, options)
     return {
       html: response.body,
       url,
@@ -46,46 +47,15 @@ async function resolveInput(input: DetectInput, options: DetectOptions) {
   }
 }
 
-function mergePackages(...groups: DetectedPackage[][]) {
-  const packages: DetectedPackage[] = []
-  for (const group of groups) {
-    for (const pkg of group)
-      upsertPackage(packages, pkg)
-  }
-  return packages.sort((a, b) => a.name.localeCompare(b.name))
-}
+async function resolveModuleDetectors(options: DetectOptions): Promise<readonly ModuleDetectorPreset[]> {
+  if (options.moduleDetectors === false)
+    return []
 
-function mergeModules(...groups: DetectedModule[][]) {
-  const modules: DetectedModule[] = []
-  for (const group of groups) {
-    for (const module of group)
-      upsertModule(modules, module)
-  }
+  if (options.moduleDetectors)
+    return options.moduleDetectors
 
-  const seoChildModules = new Set([
-    '@nuxtjs/robots',
-    '@nuxtjs/sitemap',
-    'nuxt-ai-ready',
-    'nuxt-link-checker',
-    'nuxt-og-image',
-    'nuxt-schema-org',
-    'nuxt-seo-utils',
-    'nuxt-site-config',
-  ])
-  const detectedSeoChildren = modules.filter(module => seoChildModules.has(module.packageName))
-  if (detectedSeoChildren.length >= 3) {
-    upsertModule(modules, {
-      name: 'Nuxt SEO',
-      packageName: '@nuxtjs/seo',
-      version: null,
-      certainty: 'inferred',
-      confidence: Math.min(detectedSeoChildren.length * 2, 8),
-      source: 'inferred',
-      signals: detectedSeoChildren.map(module => `inferred:${module.packageName}`),
-    })
-  }
-
-  return modules.sort((a, b) => a.packageName.localeCompare(b.packageName))
+  const { nuxtModuleDetectors } = await import('../modules/index.ts')
+  return nuxtModuleDetectors
 }
 
 export async function detectNuxt(input: DetectInput, detectOptions: DetectOptions = {}): Promise<DetectResult> {
@@ -155,16 +125,15 @@ export async function detectNuxt(input: DetectInput, detectOptions: DetectOption
     }
   }
 
-  const htmlScan = scanHtml(html, finalUrl || url)
-  const signalGroups = [htmlScan.signals]
-  const packageGroups = [htmlScan.packages]
-  const moduleGroups = [htmlScan.modules]
+  const moduleDetectors = await resolveModuleDetectors(options)
+  const evidence = createDetectionEvidence()
+  const htmlScan = scanHtml(html, finalUrl || url, { moduleDetectors })
+  evidence.merge(htmlScan)
+  evidence.merge(scanHeaders(headers, { moduleDetectors }))
 
   if (options.probeEndpoints && (finalUrl || url)) {
-    const endpointScan = await probeNuxtEndpoints(finalUrl || url!, options)
-    signalGroups.push(endpointScan.signals)
-    packageGroups.push(endpointScan.packages)
-    moduleGroups.push(endpointScan.modules)
+    const endpointScan = await probeNuxtEndpoints(finalUrl || url!, options, { moduleDetectors })
+    evidence.merge(endpointScan)
     errors.push(...endpointScan.errors)
   }
 
@@ -176,11 +145,9 @@ export async function detectNuxt(input: DetectInput, detectOptions: DetectOption
 
     for (const scriptUrl of scriptUrls) {
       try {
-        const js = await fetchScriptText(scriptUrl, options)
-        const jsScan = scanJs(js, { heuristicBytes: options.maxJsBytes })
-        signalGroups.push(jsScan.signals)
-        packageGroups.push(jsScan.packages)
-        moduleGroups.push(jsScan.modules)
+        const js = await fetchTargetScriptText(scriptUrl, options)
+        const jsScan = scanJs(js, { heuristicBytes: options.maxJsBytes, moduleDetectors })
+        evidence.merge(jsScan)
       }
       catch (error) {
         errors.push(`${scriptUrl}: ${(error as Error).message}`)
@@ -188,9 +155,16 @@ export async function detectNuxt(input: DetectInput, detectOptions: DetectOption
     }
   }
 
-  const signals = mergeSignals(...signalGroups)
-  const packages = mergePackages(...packageGroups)
-  const modules = mergeModules(...moduleGroups)
+  for (const detectorPreset of moduleDetectors) {
+    detectorPreset.inferModules?.({
+      modules: evidence.modules,
+      emitModule: evidence.emitModule,
+    })
+  }
+
+  const signals = evidence.signals
+  const packages = evidence.packages.sort((a, b) => a.name.localeCompare(b.name))
+  const modules = evidence.modules.sort((a, b) => a.packageName.localeCompare(b.packageName))
   const confidence = signalConfidence(signals)
   const hosting = options.hosting
     ? await analyzeHosting(finalUrl || url, headers, options)

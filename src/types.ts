@@ -27,6 +27,7 @@ export interface DetectOptions {
   cacheNamespace?: string
   cacheMaxAge?: number
   cacheBust?: boolean
+  moduleDetectors?: readonly ModuleDetectorPreset[] | false
 }
 
 export interface DetectionSignal {
@@ -55,6 +56,89 @@ export interface DetectedModule {
   confidence?: number
   source: DetectionSource
   signals: string[]
+}
+
+export type ModuleDetectorCollection = 'official' | 'community'
+
+export interface NuxtModuleDefinition {
+  name: string
+  packageName: string
+  collection: ModuleDetectorCollection
+}
+
+export interface ModuleHtmlResource {
+  src?: string
+  href?: string
+  type?: string
+  rel?: string
+  id?: string
+  innerHTML?: string
+  attributes: Record<string, string>
+}
+
+export interface ModuleHtmlDetectorContext {
+  nodeName: string
+  attributes: Record<string, string>
+  text: string
+  baseUrl: string | null
+  resource: ModuleHtmlResource | null
+  hasNuxtPath: (value: string | undefined) => boolean
+  emitModule: (module: DetectedModule) => void
+  emitPackage: (pkg: DetectedPackage) => void
+}
+
+export type ModuleHtmlDetector = (context: ModuleHtmlDetectorContext) => void
+
+export interface ModuleJsFingerprint extends NuxtModuleDefinition {
+  signal: string
+  re: RegExp
+  version?: (js: string) => string | null
+  certainty?: DetectedModule['certainty'] | ((version: string | null) => DetectedModule['certainty'])
+  confidence?: number | ((version: string | null) => number)
+  packageSignal?: string
+}
+
+export interface ModuleHeaderDetectorContext {
+  headers: Record<string, string>
+  getHeader: (name: string) => string | undefined
+  emitModule: (module: DetectedModule) => void
+}
+
+export type ModuleHeaderDetector = (context: ModuleHeaderDetectorContext) => void
+
+export interface ModuleEndpointProbeContext {
+  url: string
+  body: string
+  status: number
+  contentType: string | null
+  isJsonLikeResponse: () => boolean
+  moduleVersion: () => string | null
+  emitModule: (module: DetectedModule) => void
+  emitPackage: (pkg: DetectedPackage) => void
+}
+
+export interface ModuleEndpointProbe {
+  path: string
+  base: 'origin' | 'base'
+  detect: (context: ModuleEndpointProbeContext) => void
+}
+
+export interface ModuleInferContext {
+  modules: DetectedModule[]
+  emitModule: (module: DetectedModule) => void
+}
+
+export type ModuleInferDetector = (context: ModuleInferContext) => void
+
+export interface ModuleDetectorPreset {
+  name: string
+  collection: ModuleDetectorCollection
+  modules: readonly NuxtModuleDefinition[]
+  htmlDetectors?: readonly ModuleHtmlDetector[]
+  jsFingerprints?: readonly ModuleJsFingerprint[]
+  headerDetectors?: readonly ModuleHeaderDetector[]
+  endpointProbes?: readonly ModuleEndpointProbe[]
+  inferModules?: ModuleInferDetector
 }
 
 export interface DetectResult {

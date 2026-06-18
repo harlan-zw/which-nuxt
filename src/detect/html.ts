@@ -1,7 +1,7 @@
-import type { DetectedModule, DetectedPackage, DetectionSignal, RenderingResult, RenderingSignal } from '../types.ts'
+import type { DetectedModule, DetectedPackage, DetectionSignal, ModuleDetectorPreset, ModuleHtmlResource, RenderingResult, RenderingSignal } from '../types.ts'
 import { joinURL, withLeadingSlash } from 'ufo'
 import { ELEMENT_NODE, parse, walkSync } from 'ultrahtml'
-import { addSignal, signalConfidence, upsertModule, upsertPackage } from './signals.ts'
+import { createDetectionEvidence, signalConfidence } from './signals.ts'
 
 const NUXT_PATH_RE = /\/_nuxt(?:\/|$)/
 const NUXT_GENERATOR_RE = /\bnuxt\b/i
@@ -10,19 +10,8 @@ const WINDOW_NUXT_RE = /\bwindow\.__NUXT__\b/
 const SERVER_RENDERED_TRUE_RE = /\bserverRendered["']?\s*[:=]\s*true\b/
 const SERVER_RENDERED_FALSE_RE = /\bserverRendered["']?\s*[:=]\s*false\b/
 const PRERENDERED_AT_RE = /\bprerenderedAt\b/
-const SCHEMA_ORG_CONTEXT_RE = /https?:\/\/schema\.org|["@]context["']?\s*:\s*["']?schema\.org/i
-// nuxt-og-image route formats: `/_og/<type>/…` in v6+, `/__og-image__/…` before that.
-const OG_IMAGE_ROUTE_RE = /\/_og\/[a-z]\/|\/__og-image__\//i
 
-interface HtmlResource {
-  src?: string
-  href?: string
-  type?: string
-  rel?: string
-  id?: string
-  innerHTML?: string
-  attributes: Record<string, string>
-}
+type HtmlResource = ModuleHtmlResource
 
 export interface HtmlScanResult {
   signals: DetectionSignal[]
@@ -32,6 +21,10 @@ export interface HtmlScanResult {
   links: HtmlResource[]
   title: string | null
   rendering: RenderingResult
+}
+
+export interface HtmlScanOptions {
+  moduleDetectors?: readonly ModuleDetectorPreset[]
 }
 
 function addRenderingSignal(
@@ -102,11 +95,9 @@ function endpointFrom(baseUrl: string | null, path: string) {
   }
 }
 
-export function scanHtml(html: string, baseUrl: string | null): HtmlScanResult {
+export function scanHtml(html: string, baseUrl: string | null, options: HtmlScanOptions = {}): HtmlScanResult {
   const ast = parse(html)
-  const signals: DetectionSignal[] = []
-  const packages: DetectedPackage[] = []
-  const modules: DetectedModule[] = []
+  const evidence = createDetectionEvidence()
   const scripts: HtmlResource[] = []
   const links: HtmlResource[] = []
   const renderingSignals: RenderingSignal[] = []
@@ -119,24 +110,13 @@ export function scanHtml(html: string, baseUrl: string | null): HtmlScanResult {
 
     const name = node.name.toLowerCase()
     const attributes = node.attributes || {}
+    let resource: HtmlResource | null = null
 
     if (name === 'html' && 'data-n-head-ssr' in attributes)
       addRenderingSignal(renderingSignals, 'ssr', 7, 'html', 'html[data-n-head-ssr]')
 
     if (attributes.id === '__nuxt')
-      addSignal(signals, 'html:nuxt-root', 3, 'html', 'Found #__nuxt root element.')
-
-    if ('data-nuxt-schema-org' in attributes) {
-      upsertModule(modules, {
-        name: 'Nuxt Schema.org',
-        packageName: 'nuxt-schema-org',
-        version: null,
-        certainty: 'confirmed',
-        confidence: 9,
-        source: 'html',
-        signals: ['html:data-nuxt-schema-org'],
-      })
-    }
+      evidence.addSignal('html:nuxt-root', 3, 'html', 'Found #__nuxt root element.')
 
     if (attributes['data-server-rendered'] === 'true')
       addRenderingSignal(renderingSignals, 'ssr', 7, 'html', '[data-server-rendered=true]')
@@ -146,13 +126,12 @@ export function scanHtml(html: string, baseUrl: string | null): HtmlScanResult {
 
     if (name === 'meta') {
       const metaName = attributes.name?.toLowerCase()
-      const metaProperty = attributes.property?.toLowerCase()
       const content = attributes.content || ''
       if (metaName === 'generator' && NUXT_GENERATOR_RE.test(content)) {
-        addSignal(signals, 'html:generator-nuxt', 4, 'html', 'Found Nuxt generator meta tag.')
+        evidence.addSignal('html:generator-nuxt', 4, 'html', 'Found Nuxt generator meta tag.')
         const version = content.match(NUXT_GENERATOR_VERSION_RE)?.[1] || null
         if (version) {
-          upsertPackage(packages, {
+          evidence.emitPackage({
             name: 'nuxt',
             version,
             confidence: 9,
@@ -161,22 +140,10 @@ export function scanHtml(html: string, baseUrl: string | null): HtmlScanResult {
           })
         }
       }
-
-      if ((metaProperty?.startsWith('og:image') || metaName?.startsWith('twitter:image')) && OG_IMAGE_ROUTE_RE.test(content)) {
-        upsertModule(modules, {
-          name: 'Nuxt OG Image',
-          packageName: 'nuxt-og-image',
-          version: null,
-          certainty: 'confirmed',
-          confidence: 9,
-          source: 'html',
-          signals: ['html:nuxt-og-image-url'],
-        })
-      }
     }
 
     if (name === 'script') {
-      const resource: HtmlResource = {
+      resource = {
         src: normalizeResourceUrl(attributes.src, baseUrl),
         type: attributes.type,
         id: attributes.id,
@@ -186,7 +153,7 @@ export function scanHtml(html: string, baseUrl: string | null): HtmlScanResult {
       scripts.push(resource)
 
       if (resource.id === '__NUXT_DATA__') {
-        addSignal(signals, 'html:nuxt-data', 5, 'html', 'Found Nuxt 3/4 __NUXT_DATA__ payload script.')
+        evidence.addSignal('html:nuxt-data', 5, 'html', 'Found Nuxt 3/4 __NUXT_DATA__ payload script.')
         if (attributes['data-ssr'] === 'true')
           addRenderingSignal(renderingSignals, 'ssr', 6, 'html', '__NUXT_DATA__ data-ssr=true')
 
@@ -196,7 +163,7 @@ export function scanHtml(html: string, baseUrl: string | null): HtmlScanResult {
         if (PRERENDERED_AT_RE.test(resource.innerHTML || ''))
           addRenderingSignal(renderingSignals, 'ssg', 9, 'payload', '__NUXT_DATA__ contains prerenderedAt')
 
-        upsertPackage(packages, {
+        evidence.emitPackage({
           name: 'nuxt',
           version: null,
           confidence: 7,
@@ -205,7 +172,7 @@ export function scanHtml(html: string, baseUrl: string | null): HtmlScanResult {
         })
 
         if (attributes['data-src']) {
-          addSignal(signals, 'html:nuxt-data-src', 2, 'payload', 'Found external Nuxt payload data source.')
+          evidence.addSignal('html:nuxt-data-src', 2, 'payload', 'Found external Nuxt payload data source.')
           addRenderingSignal(renderingSignals, 'ssg', 4, 'payload', '__NUXT_DATA__ data-src external payload')
           links.push({
             href: normalizeResourceUrl(attributes['data-src'], baseUrl),
@@ -215,39 +182,15 @@ export function scanHtml(html: string, baseUrl: string | null): HtmlScanResult {
         }
       }
 
-      if (resource.id === 'nuxt-og-image-options' || resource.id === 'nuxt-og-image-overrides') {
-        upsertModule(modules, {
-          name: 'Nuxt OG Image',
-          packageName: 'nuxt-og-image',
-          version: null,
-          certainty: 'confirmed',
-          confidence: 10,
-          source: 'html',
-          signals: [`html:${resource.id}`],
-        })
-      }
-
-      if (resource.type === 'application/ld+json' && SCHEMA_ORG_CONTEXT_RE.test(resource.innerHTML || '')) {
-        upsertModule(modules, {
-          name: 'Nuxt Schema.org',
-          packageName: 'nuxt-schema-org',
-          version: null,
-          certainty: 'possible',
-          confidence: 4,
-          source: 'html',
-          signals: ['html:schema-org-json-ld'],
-        })
-      }
-
       if (hasNuxtPath(resource.src))
-        addSignal(signals, 'html:nuxt-script-path', 3, 'html', 'Found script under /_nuxt/.')
+        evidence.addSignal('html:nuxt-script-path', 3, 'html', 'Found script under /_nuxt/.')
 
       if (PRERENDERED_AT_RE.test(resource.innerHTML || ''))
         addRenderingSignal(renderingSignals, 'ssg', 9, 'payload', 'window.__NUXT__ contains prerenderedAt')
 
       if (WINDOW_NUXT_RE.test(resource.innerHTML || '')) {
         hasLegacyWindowNuxt = true
-        addSignal(signals, 'html:window-nuxt', 5, 'html', 'Found legacy window.__NUXT__ payload.')
+        evidence.addSignal('html:window-nuxt', 5, 'html', 'Found legacy window.__NUXT__ payload.')
       }
 
       if (SERVER_RENDERED_TRUE_RE.test(resource.innerHTML || ''))
@@ -258,7 +201,7 @@ export function scanHtml(html: string, baseUrl: string | null): HtmlScanResult {
     }
 
     if (name === 'link') {
-      const resource: HtmlResource = {
+      resource = {
         href: normalizeResourceUrl(attributes.href, baseUrl),
         rel: attributes.rel,
         type: attributes.type,
@@ -267,23 +210,44 @@ export function scanHtml(html: string, baseUrl: string | null): HtmlScanResult {
       links.push(resource)
 
       if (hasNuxtPath(resource.href))
-        addSignal(signals, 'html:nuxt-link-path', 2, 'html', 'Found link under /_nuxt/.')
+        evidence.addSignal('html:nuxt-link-path', 2, 'html', 'Found link under /_nuxt/.')
 
       if (resource.href?.includes('/_payload.json'))
-        addSignal(signals, 'html:nuxt-payload-link', 3, 'payload', 'Found route _payload.json link.')
+        evidence.addSignal('html:nuxt-payload-link', 3, 'payload', 'Found route _payload.json link.')
 
       if (resource.href?.includes('/_nuxt/builds/meta/'))
-        addSignal(signals, 'html:nuxt-build-meta-link', 4, 'endpoint', 'Found Nuxt build metadata link.')
+        evidence.addSignal('html:nuxt-build-meta-link', 4, 'endpoint', 'Found Nuxt build metadata link.')
+    }
+
+    if (options.moduleDetectors?.length) {
+      let nodeText: string | undefined
+      for (const detectorPreset of options.moduleDetectors) {
+        for (const detector of detectorPreset.htmlDetectors || []) {
+          detector({
+            nodeName: name,
+            attributes,
+            get text() {
+              nodeText ??= textContent(node)
+              return nodeText
+            },
+            baseUrl,
+            resource,
+            hasNuxtPath,
+            emitModule: evidence.emitModule,
+            emitPackage: evidence.emitPackage,
+          })
+        }
+      }
     }
   })
 
-  if (signalConfidence(signals) > 0) {
-    upsertPackage(packages, {
+  if (signalConfidence(evidence.signals) > 0) {
+    evidence.emitPackage({
       name: 'nuxt',
       version: null,
-      confidence: Math.min(signalConfidence(signals), 10),
+      confidence: Math.min(signalConfidence(evidence.signals), 10),
       source: 'html',
-      signals: signals.map(signal => signal.name),
+      signals: evidence.signals.map(signal => signal.name),
     })
   }
 
@@ -299,5 +263,13 @@ export function scanHtml(html: string, baseUrl: string | null): HtmlScanResult {
     })
   }
 
-  return { signals, packages, modules, scripts, links, title, rendering: resolveRendering(renderingSignals) }
+  return {
+    signals: evidence.signals,
+    packages: evidence.packages,
+    modules: evidence.modules,
+    scripts,
+    links,
+    title,
+    rendering: resolveRendering(renderingSignals),
+  }
 }
