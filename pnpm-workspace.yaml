@@ -1,4 +1,6 @@
 catalogMode: prefer
+minimumReleaseAgeExclude:
+  - verkit@0.2.0
 shellEmulator: true
 trustPolicy: no-downgrade
 
@@ -9,7 +11,6 @@ catalog:
   '@antfu/eslint-config': ^9.0.0
   '@arethetypeswrong/cli': ^0.18.2
   '@types/node': ^25.9.3
-  '@types/semver': ^7.7.1
   citty: ^0.2.2
   consola: ^3.4.2
   defu: ^6.1.7
@@ -17,12 +18,12 @@ catalog:
   obuild: ^0.4.36
   ofetch: ^1.5.1
   ohash: ^2.0.11
-  semver: ^7.8.4
   tldts: ^7.0.19
   typescript: 6.0.3
   ufo: ^1.6.4
   ultrahtml: ^1.6.0
   unstorage: ^1.17.5
+  verkit: ^0.2.0
   vitest: ^4.1.7
 
 onlyBuiltDependencies:

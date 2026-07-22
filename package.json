@@ -67,17 +67,16 @@
     "defu": "catalog:",
     "ofetch": "catalog:",
     "ohash": "catalog:",
-    "semver": "catalog:",
     "tldts": "catalog:",
     "ufo": "catalog:",
     "ultrahtml": "catalog:",
-    "unstorage": "catalog:"
+    "unstorage": "catalog:",
+    "verkit": "catalog:"
   },
   "devDependencies": {
     "@antfu/eslint-config": "catalog:",
     "@arethetypeswrong/cli": "catalog:",
     "@types/node": "catalog:",
-    "@types/semver": "catalog:",
     "eslint": "catalog:",
     "obuild": "catalog:",
     "typescript": "catalog:",
