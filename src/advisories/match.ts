@@ -1,5 +1,5 @@
 import type { AdvisoryMatch, AdvisoryPackageResult, DetectedPackage, GithubAdvisory, GithubAdvisoryVulnerability } from '../types.ts'
-import { intersects, satisfies, valid } from 'semver'
+import { normalize, rangesIntersect, satisfies } from 'verkit'
 
 export type AdvisoryPackageTarget
   = | {
@@ -52,7 +52,7 @@ function normalizeGithubRange(range: string) {
 }
 
 function advisoryPackageTarget(pkg: DetectedPackage): AdvisoryPackageTarget | null {
-  if (pkg.version && valid(pkg.version)) {
+  if (pkg.version && normalize(pkg.version)) {
     return {
       name: pkg.name,
       version: pkg.version,
@@ -111,7 +111,7 @@ function vulnerabilityMatches(target: AdvisoryPackageTarget, vulnerability: Gith
   if (target.matchType === 'exact')
     return satisfies(target.version, vulnerableRange, { includePrerelease: true })
 
-  return intersects(target.versionRange, vulnerableRange, { includePrerelease: true })
+  return rangesIntersect(target.versionRange, vulnerableRange, { includePrerelease: true })
 }
 
 function matchAdvisories(target: AdvisoryPackageTarget, advisories: GithubAdvisory[]) {
