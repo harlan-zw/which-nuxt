@@ -1,0 +1,36 @@
+name: Release
+
+permissions:
+  contents: write
+  id-token: write
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm pack --out "$RUNNER_TEMP/which-nuxt.tgz"
+      - run: |
+          if npm view "which-nuxt@${GITHUB_REF_NAME#v}" version >/dev/null 2>&1; then
+            echo "This version is already on npm."
+          else
+            npm publish "$RUNNER_TEMP/which-nuxt.tgz" --access public
+          fi
+      - run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "This GitHub release already exists."
+          else
+            gh release create "$GITHUB_REF_NAME" --generate-notes --verify-tag
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
