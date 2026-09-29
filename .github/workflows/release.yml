@@ -20,7 +20,17 @@ jobs:
           registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
       - run: pnpm pack --out "$RUNNER_TEMP/which-nuxt.tgz"
-      - run: npm publish "$RUNNER_TEMP/which-nuxt.tgz" --access public
-      - run: gh release create "$GITHUB_REF_NAME" --generate-notes --verify-tag
+      - run: |
+          if npm view "which-nuxt@${GITHUB_REF_NAME#v}" version >/dev/null 2>&1; then
+            echo "This version is already on npm."
+          else
+            npm publish "$RUNNER_TEMP/which-nuxt.tgz" --access public
+          fi
+      - run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "This GitHub release already exists."
+          else
+            gh release create "$GITHUB_REF_NAME" --generate-notes --verify-tag
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
