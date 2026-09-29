@@ -123,7 +123,7 @@ export const main = defineCommand({
   },
   async run({ args }) {
     const timeout = parsePositiveInteger(stringArg(args.timeout), 8000, '--timeout')
-    const maxJsRequests = parsePositiveInteger(stringArg(args.maxJsRequests), 2, '--max-js-requests')
+    const maxJsRequests = parsePositiveInteger(stringArg(args.maxJsRequests), 4, '--max-js-requests')
     const githubToken = stringArg(args.githubToken) || process.env.GITHUB_TOKEN
 
     const detected = await detectNuxt(args.target, {

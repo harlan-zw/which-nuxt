@@ -27,6 +27,10 @@
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
     },
+    "./scanners": {
+      "types": "./dist/scanners.d.mts",
+      "import": "./dist/scanners.mjs"
+    },
     "./modules": {
       "types": "./dist/modules/index.d.mts",
       "import": "./dist/modules/index.mjs"

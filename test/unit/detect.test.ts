@@ -62,6 +62,44 @@ describe('detectNuxt', () => {
     expect(result.hosting?.provider).toBe('Cloudflare')
   })
 
+  it('scans modulepreload chunks when the entry script does not carry the version', async () => {
+    const fetched: string[] = []
+    const result = await detectNuxt({
+      html: `<div id="__nuxt"></div>
+        <link rel="modulepreload" as="script" crossorigin href="/_nuxt/BQQGMP_W.js">
+        <link rel="modulepreload" as="script" crossorigin href="/_nuxt/Cz9x.js">
+        <script type="module" src="/_nuxt/entry.js"></script>`,
+      url: 'https://example.com/',
+    }, {
+      probeEndpoints: false,
+      fetch: async (input) => {
+        const url = String(input)
+        fetched.push(url)
+        const body = url.endsWith('/_nuxt/BQQGMP_W.js')
+          ? 'var Fs=`3.5.42`;const a={_uid:u++,_component:e,version:Fs};nuxtApp={versions:{get nuxt(){return`4.5.2`},get vue(){return e.version}}};defineNuxtPlugin(()=>{})'
+          : 'import"./BQQGMP_W.js";'
+        return new Response(body, { headers: { 'content-type': 'application/javascript' } })
+      },
+    })
+
+    expect(result.packages.find(pkg => pkg.name === 'nuxt')?.version).toBe('4.5.2')
+    expect(result.packages.find(pkg => pkg.name === 'vue')?.version).toBe('3.5.42')
+    expect(fetched).not.toContain('https://example.com/_nuxt/Cz9x.js')
+  })
+
+  it('does not count a latest.json response without a build id as Nuxt evidence', async () => {
+    const result = await detectNuxt({
+      html: '<html><body><div id="app"></div></body></html>',
+      url: 'https://example.com/',
+    }, {
+      scanJs: false,
+      fetch: async () => new Response('<!doctype html><html>Laravel</html>', { headers: { 'content-type': 'text/html' } }),
+    })
+
+    expect(result.signals.map(signal => signal.name)).not.toContain('endpoint:nuxt-build-latest')
+    expect(result.isNuxt).toBe(false)
+  })
+
   it('fetches and scans Nuxt JavaScript chunks', async () => {
     const js = '/** vue v3.5.13 */;/** @nuxt/content v3.7.0 */;class Versions{get nuxt(){return"3.11.2"}};defineNuxtPlugin(()=>{})'
     const result = await detectNuxt({

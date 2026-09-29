@@ -4,10 +4,13 @@ import { createDetectionEvidence } from './signals.ts'
 const VERSION_RE = /\b\d+\.\d+\.\d+(?:-[\w.-]+)?\b/g
 const PACKAGE_VERSION_COMMENT_RE = /\/\*\*?\s*(?:\*\s*)?(@?[\w.-]+(?:\/[\w.-]+)?)\s+v(\d+\.\d+\.\d+(?:-[\w.-]+)?)\s*\*\//g
 const PACKAGE_VERSION_BANNER_RE = /\/\*![\s\S]{0,800}?\b((?:@[\w.-]+\/)?[\w.-]+)\s+v(\d+\.\d+\.\d+(?:-[\w.-]+)?)/g
-const NUXT_GETTER_VERSION_RE = /get\s+nuxt\(\)\s*\{\s*return\s*"([^"]+)"\s*\}/
+// Nuxt 3 minifies the literal with double quotes; Nuxt 4 builds emit a template literal.
+const NUXT_GETTER_VERSION_RE = /get\s+nuxt\(\)\s*\{\s*return\s*(["'`])(\d+\.\d+\.\d+(?:-[\w.-]+)?)\1\s*\}/
 const NUXT_RUNTIME_RE = /\bdefineNuxtPlugin\b|\buseNuxtApp\b|\bcreateNuxtApp\b|\b__NUXT__\b/
 const NUXT_218_RELOAD_GUARD_RE = /try\{[^{}]{0,160}parseInt\(window\.sessionStorage\.getItem\("nuxt-reload"\)\)[\s\S]{0,240}\}catch\([^)]*\)\{\}/
-const NUXT_VERSION_NEEDLE_RE = /\bnuxt\b|\b_Nuxt[A-Z]|\bcreateNuxtApp\b/gi
+// Vue 3 stores its version on the createApp object: `{_uid:X++,_component:e,...,version:Fs}`
+// with `Fs="3.5.42"` declared elsewhere in the chunk.
+const VUE_CREATE_APP_VERSION_ID_RE = /_uid:[\w$]+\+\+,_component:[\s\S]{0,300}?version:([\w$]+)/
 const VUE_VERSION_NEEDLE_RE = /\bvue\b|\bcreateApp\b|\bcreateSSRApp\b/gi
 
 export interface JsScanOptions {
@@ -26,13 +29,22 @@ function versionsNearNeedle(js: string, needle: RegExp): string[] {
   return Array.from(matches)
 }
 
-function firstVersionNear(js: string, needle: RegExp) {
-  return versionsNearNeedle(js, needle)[0] || null
-}
-
 function isPlausibleNuxtVersion(version: string) {
   const major = Number(version.split('.')[0])
-  return major >= 1 && major <= 4
+  return major >= 1 && major <= 5
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/\$/g, '\\$&')
+}
+
+function vueCreateAppVersion(js: string) {
+  const id = js.match(VUE_CREATE_APP_VERSION_ID_RE)?.[1]
+  if (!id)
+    return null
+
+  const literal = new RegExp(`[,;{\\s(]${escapeRegExp(id)}=(["'\`])(\\d+\\.\\d+\\.\\d+(?:-[\\w.-]+)?)\\1`)
+  return js.match(literal)?.[2] || null
 }
 
 function isPlausibleVueVersion(version: string) {
@@ -53,7 +65,7 @@ export function scanJs(js: string, options: JsScanOptions = {}): { signals: Dete
   const heuristicJs = options.heuristicBytes && options.heuristicBytes < js.length
     ? js.slice(0, options.heuristicBytes)
     : js
-  const nuxtGetterVersion = js.match(NUXT_GETTER_VERSION_RE)?.[1] || null
+  const nuxtGetterVersion = js.match(NUXT_GETTER_VERSION_RE)?.[2] || null
 
   for (const match of js.matchAll(PACKAGE_VERSION_COMMENT_RE)) {
     const name = match[1] ? normalizePackageName(match[1]) : undefined
@@ -156,24 +168,17 @@ export function scanJs(js: string, options: JsScanOptions = {}): { signals: Dete
     }
   }
 
-  const nuxtVersion = nuxtGetterVersion || firstVersionNear(heuristicJs, NUXT_VERSION_NEEDLE_RE)
-  if (nuxtVersion && isPlausibleNuxtVersion(nuxtVersion)) {
-    evidence.addSignal('js:nuxt-version', 6, 'js', 'Found Nuxt-adjacent version string in JavaScript.')
-    evidence.emitPackage({
-      name: 'nuxt',
-      version: nuxtVersion,
-      confidence: 9,
-      source: 'js',
-      signals: ['js:nuxt-version'],
-    })
-  }
-
+  // No fuzzy "version near a nuxt token" fallback: it attributed unrelated SDK versions
+  // (nuxt.com read as Nuxt 2.0.1), which would report a false end-of-life major.
   // Exclude the Nuxt getter literal: the runtime emits
   // `versions:{get nuxt(){return"X"},get vue(){return app.version}}`, where the vue
   // getter returns an expression, so the literal nearest the vue needle is Nuxt's, not
   // Vue's. Attributing it to vue produced false positives (vue === nuxt version).
-  const vueVersion = versionsNearNeedle(heuristicJs, VUE_VERSION_NEEDLE_RE)
-    .find(version => version !== nuxtGetterVersion && isPlausibleVueVersion(version)) || null
+  const vueCreateApp = vueCreateAppVersion(js)
+  const vueVersion = (vueCreateApp && isPlausibleVueVersion(vueCreateApp) ? vueCreateApp : null)
+    || versionsNearNeedle(heuristicJs, VUE_VERSION_NEEDLE_RE)
+      .find(version => version !== nuxtGetterVersion && isPlausibleVueVersion(version))
+      || null
   if (vueVersion) {
     evidence.emitPackage({
       name: 'vue',

@@ -35,7 +35,7 @@ which-nuxt https://nuxt.com --age --github-token $GITHUB_TOKEN
 | `--no-hosting` | Skip hosting provider detection from response headers. |
 | `--age` | Fetch RDAP domain age metadata. |
 | `--timeout <ms>` | Set the network timeout. Defaults to `8000`. |
-| `--max-js-requests <count>` | Set the maximum number of Nuxt JavaScript chunks to fetch. Defaults to `2`. |
+| `--max-js-requests <count>` | Set the maximum number of Nuxt JavaScript chunks to fetch. Defaults to `4`. Scanning stops early once the exact Nuxt version is found. |
 | `--github-token <token>` | Use a GitHub token for advisory API requests. Defaults to `GITHUB_TOKEN`. |
 | `--user-agent <agent>` | Use a custom User-Agent for target-site requests. |
 
@@ -44,6 +44,7 @@ The public API is intentionally small:
 - `detectNuxt(input, options?)`
 - `checkAdvisories(detected, options?)`
 - module detector presets from `which-nuxt/modules`, `which-nuxt/modules/official` and `which-nuxt/modules/community`
+- `scanHtml(html, baseUrl, options?)` and `scanJs(js, options?)` from `which-nuxt/scanners`, for callers that already fetched the HTML or JavaScript
 
 Detection is confidence-scored. Advisory matches are exact for detected versions and possible for inferred version ranges.
 
@@ -71,6 +72,17 @@ Use `communityNuxtModuleDetectors` from `which-nuxt/modules/community` for commu
 module mappings, combine both via `nuxtModuleDetectors` from `which-nuxt/modules`, or
 pass `moduleDetectors: false` to disable module fingerprinting while keeping core Nuxt
 detection.
+
+A crawler already holds each page's HTML and its `/_nuxt/` assets. It can run the
+scanners on those bodies and skip the requests `detectNuxt()` makes:
+
+```ts
+import { officialNuxtModuleDetectors } from 'which-nuxt/modules/official'
+import { scanHtml, scanJs } from 'which-nuxt/scanners'
+
+const page = scanHtml(html, url, { moduleDetectors: officialNuxtModuleDetectors })
+const entry = scanJs(entryChunk, { moduleDetectors: officialNuxtModuleDetectors })
+```
 
 ## Supported Module Mappings
 
