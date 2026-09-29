@@ -131,6 +131,37 @@ describe('scanJs', () => {
     expect(result.signals.map(signal => signal.name)).toContain('js:nuxt-getter-version')
   })
 
+  it.each([
+    ['backtick', 'get nuxt(){return`4.5.2`}'],
+    ['single quote', 'get nuxt(){return\'4.5.2\'}'],
+  ])('extracts the Nuxt version getter written with a %s literal', (_quote, getter) => {
+    const js = `nuxtApp={versions:{${getter},get vue(){return e.version}}};defineNuxtPlugin(()=>{})`
+    const result = scanJs(js)
+
+    expect(result.packages.find(pkg => pkg.name === 'nuxt')?.version).toBe('4.5.2')
+    expect(result.signals.map(signal => signal.name)).toContain('js:nuxt-getter-version')
+  })
+
+  it('reads the Vue version from the createApp object literal', () => {
+    const js = 'var Fs=`3.5.42`;function vt(e){const t={_uid:Ms++,_component:e,_props:null,_container:null,_context:n,version:Fs,get config(){return n.config}};return t}'
+    const result = scanJs(js)
+
+    expect(result.packages.find(pkg => pkg.name === 'vue')?.version).toBe('3.5.42')
+  })
+
+  it('does not guess a Nuxt version from an unrelated version string near a nuxt token', () => {
+    const js = 'const sdk={name:"@vercel/analytics",version:"2.0.1"};const nuxt=sdk;defineNuxtPlugin(()=>{})'
+    const result = scanJs(js)
+
+    expect(result.packages.filter(pkg => pkg.name === 'nuxt').map(pkg => pkg.version)).not.toContain('2.0.1')
+  })
+
+  it('accepts a Nuxt 5 version getter', () => {
+    const result = scanJs('nuxtApp={versions:{get nuxt(){return`5.0.0-29843776.a1b2c3d`}}};defineNuxtPlugin(()=>{})')
+
+    expect(result.packages.find(pkg => pkg.name === 'nuxt')?.version).toBe('5.0.0-29843776.a1b2c3d')
+  })
+
   it('does not misattribute the Nuxt version to vue from the runtime versions block', () => {
     const js = `const version="3.5.26";function createApp(){};`
       + `nuxtApp={versions:{get nuxt(){return"3.16.2"},get vue(){return e.vueApp.version}}};defineNuxtPlugin(()=>{})`
@@ -265,5 +296,16 @@ describe('scanHeaders', () => {
     }, { moduleDetectors: communityNuxtModuleDetectors })
 
     expect(result.modules.find(module => module.packageName === '@nuxtjs/i18n')?.certainty).toBe('inferred')
+  })
+})
+
+describe('which-nuxt/scanners entry', () => {
+  it('reads the Nuxt version from bodies a caller already fetched', async () => {
+    const scanners = await import('../../src/scanners.ts')
+    const page = scanners.scanHtml('<div id="__nuxt"></div><script type="application/json" id="__NUXT_DATA__" data-ssr="true">[]</script>', 'https://example.com/')
+    const entry = scanners.scanJs('nuxtApp={versions:{get nuxt(){return`4.5.2`}}};defineNuxtPlugin(()=>{})')
+
+    expect(page.signals.map(signal => signal.name)).toContain('html:nuxt-data')
+    expect(entry.packages.find(pkg => pkg.name === 'nuxt')?.version).toBe('4.5.2')
   })
 })

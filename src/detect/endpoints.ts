@@ -36,6 +36,17 @@ function isJsonLikeResponse(response: { body: string, contentType: string | null
   return response.contentType?.includes('json') || trimmed.startsWith('{') || trimmed.startsWith('[')
 }
 
+function isNuxtBuildLatest(body: string) {
+  try {
+    const parsed: unknown = JSON.parse(body)
+    return typeof parsed === 'object' && parsed !== null && typeof (parsed as { id?: unknown }).id === 'string'
+  }
+  catch {
+    // Not JSON, so not a Nuxt build manifest.
+    return false
+  }
+}
+
 function moduleProbeUrl(baseUrl: string, origin: string, probe: ModuleEndpointProbe) {
   return joinURL(probe.base === 'origin' ? origin : baseUrl, probe.path)
 }
@@ -60,7 +71,11 @@ export async function probeNuxtEndpoints(baseUrl: string, options: DetectOptions
   const probes: EndpointProbeRunner[] = [
     {
       url: joinURL(origin, '/_nuxt/builds/latest.json'),
-      detect: () => {
+      detect: (response) => {
+        // Any origin can answer this path with a 200 (SPA fallbacks, catch-all routes),
+        // so only a JSON body carrying the build id counts as Nuxt evidence.
+        if (!isNuxtBuildLatest(response.body))
+          return
         evidence.addSignal('endpoint:nuxt-build-latest', 5, 'endpoint', 'Fetched /_nuxt/builds/latest.json successfully.')
         evidence.emitPackage({
           name: 'nuxt',

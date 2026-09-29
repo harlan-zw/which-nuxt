@@ -1,7 +1,7 @@
 {
   "name": "which-nuxt",
   "type": "module",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "packageManager": "pnpm@11.5.2",
   "description": "Detect Nuxt, Vue and Nuxt-related package versions from public Nuxt sites.",
   "author": {
@@ -26,6 +26,10 @@
     ".": {
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
+    },
+    "./scanners": {
+      "types": "./dist/scanners.d.mts",
+      "import": "./dist/scanners.mjs"
     },
     "./modules": {
       "types": "./dist/modules/index.d.mts",

@@ -58,13 +58,19 @@ async function resolveModuleDetectors(options: DetectOptions): Promise<readonly 
   return nuxtModuleDetectors
 }
 
+const WHITESPACE_RE = /\s+/
+
+function isModulePreload(rel: string | undefined) {
+  return !!rel && rel.split(WHITESPACE_RE).includes('modulepreload')
+}
+
 export async function detectNuxt(input: DetectInput, detectOptions: DetectOptions = {}): Promise<DetectResult> {
   const options = defu(detectOptions, {
     scanJs: true,
     probeEndpoints: true,
     hosting: true,
     domainAge: false,
-    maxJsRequests: 2,
+    maxJsRequests: 4,
     maxJsBytes: 300_000,
     timeout: 8000,
   } satisfies DetectOptions)
@@ -138,16 +144,22 @@ export async function detectNuxt(input: DetectInput, detectOptions: DetectOption
   }
 
   if (options.scanJs && (finalUrl || url)) {
-    const scriptUrls = htmlScan.scripts
-      .map(script => script.src)
-      .filter((src): src is string => !!src && (src.includes('/_nuxt/') || src.startsWith(finalUrl || url!)))
-      .slice(0, options.maxJsRequests)
+    // The Nuxt version getter lives in the entry chunk or one of its modulepreload
+    // siblings, so scan entry scripts first, then preloads, and stop once both versions are known.
+    const isOwnScript = (src: string | undefined): src is string => !!src && (src.includes('/_nuxt/') || src.startsWith(finalUrl || url!))
+    const scriptUrls = Array.from(new Set([
+      ...htmlScan.scripts.map(script => script.src),
+      ...htmlScan.links.filter(link => isModulePreload(link.rel)).map(link => link.href),
+    ].filter(isOwnScript))).slice(0, options.maxJsRequests)
 
     for (const scriptUrl of scriptUrls) {
       try {
         const js = await fetchTargetScriptText(scriptUrl, options)
         const jsScan = scanJs(js, { heuristicBytes: options.maxJsBytes, moduleDetectors })
         evidence.merge(jsScan)
+        const packages = evidence.packages
+        if (packages.some(pkg => pkg.name === 'nuxt' && pkg.version) && packages.some(pkg => pkg.name === 'vue' && pkg.version))
+          break
       }
       catch (error) {
         errors.push(`${scriptUrl}: ${(error as Error).message}`)
