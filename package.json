@@ -10,9 +10,13 @@
     "url": "https://harlanzw.com/"
   },
   "license": "MIT",
+  "homepage": "https://github.com/harlan-zw/which-nuxt#readme",
   "repository": {
     "type": "git",
     "url": "https://github.com/harlan-zw/which-nuxt"
+  },
+  "bugs": {
+    "url": "https://github.com/harlan-zw/which-nuxt/issues"
   },
   "keywords": [
     "nuxt",

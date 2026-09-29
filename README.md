@@ -1,23 +1,36 @@
-# which-nuxt
+<h1>which-nuxt</h1>
 
-Detect Nuxt, Vue, Nuxt modules and Nuxt-related package versions from public Nuxt sites, then check detected versions and inferred version ranges against GitHub advisories.
+[![npm version](https://img.shields.io/npm/v/which-nuxt?color=yellow)](https://npmjs.com/package/which-nuxt)
+[![npm downloads](https://img.shields.io/npm/dm/which-nuxt?color=yellow)](https://npm.chart.dev/which-nuxt)
+[![license](https://img.shields.io/github/license/harlan-zw/which-nuxt?color=yellow)](https://github.com/harlan-zw/which-nuxt/blob/main/LICENSE.md)
 
-```ts
-import { checkAdvisories, detectNuxt } from 'which-nuxt'
+> 🔍 Point it at a URL. Get back the Nuxt and Vue versions, the Nuxt modules, the host, and any GitHub advisories that match.
 
-const detected = await detectNuxt('https://nuxt.com')
-const advisories = await checkAdvisories(detected)
-```
+<p align="center">
+<table>
+<tbody>
+<td align="center">
+<sub>Made possible by my <a href="https://github.com/sponsors/harlan-zw">Sponsor Program 💖</a><br> Follow me <a href="https://twitter.com/harlan_zw">@harlan_zw</a> 🐦 • Join <a href="https://discord.gg/275MBUBvgP">Discord</a> for help</sub><br>
+</td>
+</tbody>
+</table>
+</p>
+
+## Features
+
+- 🔍 Reads Nuxt and Vue versions from HTML, `/_nuxt/` chunks and public Nuxt endpoints.
+- 🧩 Fingerprints 20 Nuxt modules, each tagged `confirmed`, `inferred` or `possible`.
+- 🛡️ Checks versions against GitHub advisories. Exact versions give exact matches; inferred ranges give possible ones.
+- 🌐 Names the host from response headers, with optional domain age from RDAP.
+- 🌲 Treeshakable module presets, plus scanners that never touch the network, for crawlers that already hold the HTML.
 
 ## CLI
-
-Run against a public site:
 
 ```sh
 npx which-nuxt https://nuxt.com
 ```
 
-The package exposes both `which-nuxt` and `whichnuxt` bin aliases.
+`whichnuxt` works too.
 
 ```sh
 which-nuxt https://nuxt.com --json
@@ -30,34 +43,42 @@ which-nuxt https://nuxt.com --age --github-token $GITHUB_TOKEN
 | --- | --- |
 | `--json` | Print the full detection and advisory result as JSON. |
 | `--no-advisories` | Skip GitHub advisory checks. |
-| `--no-js` | Do not fetch and scan Nuxt JavaScript chunks. |
-| `--no-endpoints` | Do not probe Nuxt public endpoints. |
+| `--no-js` | Skip fetching and scanning Nuxt JavaScript chunks. |
+| `--no-endpoints` | Skip probing Nuxt public endpoints. |
 | `--no-hosting` | Skip hosting provider detection from response headers. |
 | `--age` | Fetch RDAP domain age metadata. |
-| `--timeout <ms>` | Set the network timeout. Defaults to `8000`. |
-| `--max-js-requests <count>` | Set the maximum number of Nuxt JavaScript chunks to fetch. Defaults to `4`. Scanning stops early once both the Nuxt and Vue versions are found. |
-| `--github-token <token>` | Use a GitHub token for advisory API requests. Defaults to `GITHUB_TOKEN`. |
-| `--user-agent <agent>` | Use a custom User-Agent for target-site requests. |
+| `--timeout <ms>` | Network timeout. Defaults to `8000`. |
+| `--max-js-requests <count>` | Most Nuxt JavaScript chunks to fetch. Defaults to `4`. Stops early once it has both the Nuxt and Vue versions. |
+| `--github-token <token>` | GitHub token for advisory API requests. Defaults to `GITHUB_TOKEN`. |
+| `--user-agent <agent>` | User-Agent for requests to the target site. |
 
-The public API is intentionally small:
+### What it requests
 
-- `detectNuxt(input, options?)`
-- `checkAdvisories(detected, options?)`
-- module detector presets from `which-nuxt/modules`, `which-nuxt/modules/official` and `which-nuxt/modules/community`
-- `scanHtml(html, baseUrl, options?)` and `scanJs(js, options?)` from `which-nuxt/scanners`, for callers that already fetched the HTML or JavaScript
+One scan fetches the page, up to 4 JavaScript chunks, and a set of public endpoints such as `/_payload.json`, `/_nuxt/builds/latest.json` and module debug routes. The advisory check calls the GitHub API. `--age` adds one RDAP lookup. Each `--no-*` flag turns its step off.
 
-Detection is confidence-scored. Advisory matches are exact for detected versions and possible for inferred version ranges.
+Requests to the target site send a desktop Chrome User-Agent unless you pass `--user-agent`.
 
-`detectNuxt()` returns:
+## API
 
-- `packages`: detected dependency versions, used by `checkAdvisories()`.
-- `modules`: Nuxt module fingerprints with `confirmed`, `inferred` or `possible` certainty.
-- `hosting.provider`: serving edge/CDN/platform inferred from HTTP headers.
-- `hosting.domainAge`: optional RDAP registrar, creation date and age when `domainAge: true`.
+```ts
+import { checkAdvisories, detectNuxt } from 'which-nuxt'
 
-Module detection defaults to all bundled official and community mappings. To make module
-fingerprints tree-shakable, import the preset surface you want and pass it to
-`moduleDetectors`:
+const detected = await detectNuxt('https://nuxt.com')
+const advisories = await checkAdvisories(detected)
+```
+
+`detectNuxt()` returns, among other fields:
+
+- `packages`: detected dependency versions. `checkAdvisories()` reads these.
+- `modules`: Nuxt module fingerprints, each with a `certainty` of `confirmed`, `inferred` or `possible`.
+- `hosting.provider`: the edge, CDN or platform named by the response headers.
+- `hosting.domainAge`: registrar, creation date and age from RDAP, when you pass `domainAge: true`.
+
+Every result carries a confidence score. `checkAdvisories()` reports an exact match for a detected version and a possible match for an inferred range.
+
+### Module presets
+
+By default `detectNuxt()` runs every bundled module mapping. Import one preset to ship less code:
 
 ```ts
 import { detectNuxt } from 'which-nuxt'
@@ -68,13 +89,17 @@ const detected = await detectNuxt('https://nuxt.com', {
 })
 ```
 
-Use `communityNuxtModuleDetectors` from `which-nuxt/modules/community` for community
-module mappings, combine both via `nuxtModuleDetectors` from `which-nuxt/modules`, or
-pass `moduleDetectors: false` to disable module fingerprinting while keeping core Nuxt
-detection.
+| Preset | Import | Covers |
+| --- | --- | --- |
+| `officialNuxtModuleDetectors` | `which-nuxt/modules/official` | `@nuxt/*` modules |
+| `communityNuxtModuleDetectors` | `which-nuxt/modules/community` | `@nuxtjs/*`, `nuxt-*` and third-party modules |
+| `nuxtModuleDetectors` | `which-nuxt/modules` | both |
 
-A crawler already holds each page's HTML and its `/_nuxt/` assets. It can run the
-scanners on those bodies and skip the requests `detectNuxt()` makes:
+Pass `moduleDetectors: false` to skip module fingerprinting and keep core Nuxt detection.
+
+### Scanners
+
+A crawler already has each page's HTML and its `/_nuxt/` assets. Hand them to the scanners and skip the requests `detectNuxt()` would make:
 
 ```ts
 import { officialNuxtModuleDetectors } from 'which-nuxt/modules/official'
@@ -84,13 +109,27 @@ const page = scanHtml(html, url, { moduleDetectors: officialNuxtModuleDetectors 
 const entry = scanJs(entryChunk, { moduleDetectors: officialNuxtModuleDetectors })
 ```
 
+### Cache
+
+Pass an `unstorage` instance to cache the full detection result:
+
+```ts
+import { createStorage } from 'unstorage'
+import memoryDriver from 'unstorage/drivers/memory'
+import { detectNuxt } from 'which-nuxt'
+
+const cache = createStorage({ driver: memoryDriver() })
+
+const first = await detectNuxt('https://nuxt.com', { cache })
+const cached = await detectNuxt('https://nuxt.com', { cache })
+const fresh = await detectNuxt('https://nuxt.com', { cache, cacheBust: true })
+```
+
+`cacheMaxAge` expires entries. `cacheNamespace` and `cacheKey` control the storage keys.
+
 ## Supported Module Mappings
 
-Module mappings are best-effort public fingerprints. Results include `confirmed`, `inferred` or `possible` certainty depending on the signal quality.
-
-The official preset covers the supported `@nuxt/*` module mappings. The community
-preset covers the supported Nuxt Modules/community ecosystem mappings such as
-`@nuxtjs/*`, `nuxt-*` and third-party Nuxt integrations.
+Every mapping reads public fingerprints, so a site can hide or fake any of them. The certainty on each result tells you how much weight the signal carries.
 
 | Module | Package | Public mappings | Version mapping |
 | --- | --- | --- | --- |
@@ -115,20 +154,6 @@ preset covers the supported Nuxt Modules/community ecosystem mappings such as
 | Nuxt Security | `nuxt-security` | Default security header set such as `X-XSS-Protection: 0`, `Origin-Agent-Cluster: ?1` and `X-Permitted-Cross-Domain-Policies: none` (inferred), SRI `sha384` hashes on `/_nuxt/` assets. | Not currently detected. |
 | Pinia | `@pinia/nuxt` | `pinia` key in the `__NUXT_DATA__` payload (possible; only when a store has SSR state). | Not currently detected. |
 
-## Cache
+## License
 
-Pass an `unstorage` instance to cache and reuse the full detection artifact:
-
-```ts
-import { createStorage } from 'unstorage'
-import memoryDriver from 'unstorage/drivers/memory'
-import { detectNuxt } from 'which-nuxt'
-
-const cache = createStorage({ driver: memoryDriver() })
-
-const first = await detectNuxt('https://nuxt.com', { cache })
-const cached = await detectNuxt('https://nuxt.com', { cache })
-const fresh = await detectNuxt('https://nuxt.com', { cache, cacheBust: true })
-```
-
-Use `cacheMaxAge` to expire artifacts and `cacheNamespace` or `cacheKey` to control storage keys.
+Licensed under the [MIT license](https://github.com/harlan-zw/which-nuxt/blob/main/LICENSE.md).
