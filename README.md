@@ -56,7 +56,7 @@ which-nuxt https://nuxt.com --age --github-token $GITHUB_TOKEN
 
 One scan fetches the page, up to 4 JavaScript chunks, and a set of public endpoints such as `/_payload.json`, `/_nuxt/builds/latest.json` and module debug routes. The advisory check calls the GitHub API. `--age` adds one RDAP lookup. Each `--no-*` flag turns its step off.
 
-Requests to the target site send a desktop Chrome User-Agent unless you pass `--user-agent`.
+Every request identifies itself as `which-nuxt/<version> (+https://github.com/harlan-zw/which-nuxt)`. Pass `--user-agent` to change it for the target site.
 
 ## API
 
