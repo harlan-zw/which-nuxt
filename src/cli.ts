@@ -108,7 +108,7 @@ export const main = defineCommand({
       type: 'string',
       description: 'Maximum Nuxt JavaScript chunks to fetch.',
       valueHint: 'count',
-      default: '2',
+      default: '4',
     },
     'github-token': {
       type: 'string',
