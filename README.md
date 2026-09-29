@@ -35,7 +35,7 @@ which-nuxt https://nuxt.com --age --github-token $GITHUB_TOKEN
 | `--no-hosting` | Skip hosting provider detection from response headers. |
 | `--age` | Fetch RDAP domain age metadata. |
 | `--timeout <ms>` | Set the network timeout. Defaults to `8000`. |
-| `--max-js-requests <count>` | Set the maximum number of Nuxt JavaScript chunks to fetch. Defaults to `4`. Scanning stops early once the exact Nuxt version is found. |
+| `--max-js-requests <count>` | Set the maximum number of Nuxt JavaScript chunks to fetch. Defaults to `4`. Scanning stops early once both the Nuxt and Vue versions are found. |
 | `--github-token <token>` | Use a GitHub token for advisory API requests. Defaults to `GITHUB_TOKEN`. |
 | `--user-agent <agent>` | Use a custom User-Agent for target-site requests. |
 
