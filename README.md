@@ -18,25 +18,33 @@
 
 ## Features
 
-- 🔍 Reads Nuxt and Vue versions from HTML, `/_nuxt/` chunks and public Nuxt endpoints.
-- 🧩 Fingerprints 20 Nuxt modules, each tagged `confirmed`, `inferred` or `possible`.
-- 🛡️ Checks versions against GitHub advisories. Exact versions give exact matches; inferred ranges give possible ones.
-- 🌐 Names the host from response headers, with optional domain age from RDAP.
-- 🌲 Treeshakable module presets, plus scanners that never touch the network, for crawlers that already hold the HTML.
+- 🔍 **Versions from a URL**: See the exact Nuxt and Vue versions a site runs, with no access to its code.
+- 🛡️ **Advisory check**: Find out which GitHub security advisories affect those versions. An inferred version range gives a possible match, not a confirmed one.
+- 🧩 **20 Nuxt modules**: Spot Nuxt UI, Nuxt Content, i18n, the Nuxt SEO modules and more. Each match says how sure it is.
+- 🌐 **Hosting and domain age**: Learn which platform serves the site and, if you ask, how old its domain is.
+- 🕷️ **Built for crawlers**: Already have the HTML? Scan it with no extra requests, and bundle only the module presets you use.
 
 ## CLI
 
-```sh
+```bash
+# Scan a site
 npx which-nuxt https://nuxt.com
 ```
 
-`whichnuxt` works too.
+The `whichnuxt` alias runs the same command.
 
-```sh
+```bash
+# Print the full result as JSON
 which-nuxt https://nuxt.com --json
+
+# Skip the GitHub advisory check
 which-nuxt https://nuxt.com --no-advisories
+
+# Read the page only: no JavaScript chunks, no endpoint probes
 which-nuxt https://nuxt.com --no-js --no-endpoints
-which-nuxt https://nuxt.com --age --github-token $GITHUB_TOKEN
+
+# Add the domain age, and use a token for a higher GitHub rate limit
+which-nuxt https://nuxt.com --age --github-token "$GITHUB_TOKEN"
 ```
 
 | Flag | Description |
@@ -133,26 +141,26 @@ Every mapping reads public fingerprints, so a site can hide or fake any of them.
 
 | Module | Package | Public mappings | Version mapping |
 | --- | --- | --- | --- |
-| Nuxt SEO | `@nuxtjs/seo` | Inferred when at least three supported SEO child modules are detected. | Not currently detected. |
-| Nuxt Robots | `@nuxtjs/robots` | `robots.txt` Nuxt Robots credits, `/__robots__/debug.json`, JS fingerprints such as `nuxt-robots`, `@nuxtjs/robots`, `robots:bot-context` and `useRobotsRule`. | `/__robots__/debug.json`. |
-| Nuxt Sitemap | `@nuxtjs/sitemap` | `sitemap.xml`, `sitemap_index.xml`, `/__sitemap__/style.xsl`, `/__sitemap__/debug.json`, JS fingerprints such as `__sitemap__`, `@nuxtjs/sitemap` and `sitemap:urls`. | `/__sitemap__/debug.json`. |
-| Nuxt Schema.org | `nuxt-schema-org` | `data-nuxt-schema-org`, `<script id="schema-org-graph">`, `/__schema-org__/debug.json`, JS fingerprints such as `nuxt-schema-org`, `#schema-org` and `schema-org:meta`. Generic schema.org JSON-LD is not treated as a module signal. | `/__schema-org__/debug.json`. |
-| Nuxt OG Image | `nuxt-og-image` | OG/Twitter image URLs under `/_og/` or `/__og-image__/`, `nuxt-og-image-options`, `nuxt-og-image-overrides`, `/_og/debug.json`, JS fingerprints such as `nuxt-og-image` and `defineOgImage`. | `/_og/debug.json`. |
-| Nuxt SEO Utils | `nuxt-seo-utils` | `/__nuxt-seo-utils/debug.json`, JS fingerprints such as `nuxt-seo-utils`, `seo-utils`, `useSeoMeta`, `useBreadcrumbItems` and `useShareLinks`. | `/__nuxt-seo-utils/debug.json` or JS `nuxt-seo-utils-version`. |
-| Nuxt Site Config | `nuxt-site-config` | `/__site-config__/debug.json`, JS fingerprints such as `nuxt-site-config`, `#site-config`, `useSiteConfig` and `site-config-stack`. | `/__site-config__/debug.json`. |
-| Nuxt Link Checker | `nuxt-link-checker` | JS fingerprints such as `nuxt-link-checker`, `__link-checker__` and `link-checker:links`. | Not currently detected. |
-| Nuxt AI Ready | `nuxt-ai-ready` | `/__ai-ready__/debug.json`, `llms.txt` containing a `Canonical Origin:` header line, `<link rel="alternate" type="text/markdown" href="*.md">`, JS fingerprints `nuxt-ai-ready` and `__ai-ready`. A bare llmstxt.org-format `llms.txt` is not treated as a module signal. | `/__ai-ready__/debug.json`. |
-| Nuxt Scripts | `@nuxt/scripts` | Proxied/bundled script `src` under `/_scripts/`, JS fingerprints such as `/_scripts/`, `@nuxt/scripts`, `useScript` and `script-registry`. | Not currently detected. |
-| Nuxt Image | `@nuxt/image` | IPX provider URLs under `/_ipx/` in `img`/`source` `src`/`srcset`, JS fingerprint `/_ipx/`. | Not currently detected. |
-| Nuxt Fonts | `@nuxt/fonts` | Self-hosted font assets under `/_fonts/` in `link[rel=preload]` and `@font-face` `src`. | Not currently detected. |
-| Nuxt Icon | `@nuxt/icon` | Rendered `class="iconify i-<collection>-<name>"` spans (inferred; the `@iconify/vue` `iconify--` form is excluded), JS fingerprints `/api/_nuxt_icon` and `@nuxt/icon`. | Not currently detected. |
-| Nuxt UI | `@nuxt/ui` | `<style id="nuxt-ui-colors">` (or `data-nuxt-ui-colors`) injected by the colors plugin, JS fingerprint `nuxt-ui-colors`. | Not currently detected. |
-| Vuetify | `vuetify-nuxt-module` | `<style id="vuetify-theme-stylesheet">` injected by Vuetify (inferred). | Not currently detected. |
-| Nuxt Color Mode | `@nuxtjs/color-mode` | Inline `window.__NUXT_COLOR_MODE__` script, JS fingerprint `__NUXT_COLOR_MODE__`. | Not currently detected. |
-| Nuxt Content | `@nuxt/content` | `/__nuxt_content/content/sql_dump.txt` (v3), `/api/_content/cache.json` (v2), JS fingerprints such as `/__nuxt_content/`, `queryCollection` and `/api/_content/`. | Not currently detected. |
-| Nuxt i18n | `@nuxtjs/i18n` | `i18n_redirected` cookie (inferred). Generic `hreflang` alternates are not treated as a module signal. | Not currently detected. |
-| Nuxt Security | `nuxt-security` | Default security header set such as `X-XSS-Protection: 0`, `Origin-Agent-Cluster: ?1` and `X-Permitted-Cross-Domain-Policies: none` (inferred), SRI `sha384` hashes on `/_nuxt/` assets. | Not currently detected. |
-| Pinia | `@pinia/nuxt` | `pinia` key in the `__NUXT_DATA__` payload (possible; only when a store has SSR state). | Not currently detected. |
+| [Nuxt SEO](https://github.com/harlan-zw/nuxt-seo) | `@nuxtjs/seo` | Inferred when at least three supported SEO child modules are detected. | None. |
+| [Nuxt Robots](https://github.com/nuxt-modules/robots) | `@nuxtjs/robots` | `robots.txt` Nuxt Robots credits, `/__robots__/debug.json`, JS fingerprints such as `nuxt-robots`, `@nuxtjs/robots`, `robots:bot-context` and `useRobotsRule`. | `/__robots__/debug.json`. |
+| [Nuxt Sitemap](https://github.com/nuxt-modules/sitemap) | `@nuxtjs/sitemap` | `sitemap.xml`, `sitemap_index.xml`, `/__sitemap__/style.xsl`, `/__sitemap__/debug.json`, JS fingerprints such as `__sitemap__`, `@nuxtjs/sitemap` and `sitemap:urls`. | `/__sitemap__/debug.json`. |
+| [Nuxt Schema.org](https://github.com/harlan-zw/nuxt-schema-org) | `nuxt-schema-org` | `data-nuxt-schema-org`, `<script id="schema-org-graph">`, `/__schema-org__/debug.json`, JS fingerprints such as `nuxt-schema-org`, `#schema-org` and `schema-org:meta`. Generic schema.org JSON-LD is not treated as a module signal. | `/__schema-org__/debug.json`. |
+| [Nuxt OG Image](https://github.com/nuxt-modules/og-image) | `nuxt-og-image` | OG/Twitter image URLs under `/_og/` or `/__og-image__/`, `nuxt-og-image-options`, `nuxt-og-image-overrides`, `/_og/debug.json`, JS fingerprints such as `nuxt-og-image` and `defineOgImage`. | `/_og/debug.json`. |
+| [Nuxt SEO Utils](https://github.com/harlan-zw/nuxt-seo-utils) | `nuxt-seo-utils` | `/__nuxt-seo-utils/debug.json`, JS fingerprints such as `nuxt-seo-utils`, `seo-utils`, `useSeoMeta`, `useBreadcrumbItems` and `useShareLinks`. | `/__nuxt-seo-utils/debug.json` or JS `nuxt-seo-utils-version`. |
+| [Nuxt Site Config](https://github.com/harlan-zw/nuxt-site-config) | `nuxt-site-config` | `/__site-config__/debug.json`, JS fingerprints such as `nuxt-site-config`, `#site-config`, `useSiteConfig` and `site-config-stack`. | `/__site-config__/debug.json`. |
+| [Nuxt Link Checker](https://github.com/harlan-zw/nuxt-link-checker) | `nuxt-link-checker` | JS fingerprints such as `nuxt-link-checker`, `__link-checker__` and `link-checker:links`. | None. |
+| [Nuxt AI Ready](https://github.com/harlan-zw/nuxt-ai-ready) | `nuxt-ai-ready` | `/__ai-ready__/debug.json`, `llms.txt` containing a `Canonical Origin:` header line, `<link rel="alternate" type="text/markdown" href="*.md">`, JS fingerprints `nuxt-ai-ready` and `__ai-ready`. A bare llmstxt.org-format `llms.txt` is not treated as a module signal. | `/__ai-ready__/debug.json`. |
+| [Nuxt Scripts](https://github.com/nuxt/scripts) | `@nuxt/scripts` | Proxied/bundled script `src` under `/_scripts/`, JS fingerprints such as `/_scripts/`, `@nuxt/scripts`, `useScript` and `script-registry`. | None. |
+| [Nuxt Image](https://github.com/nuxt/image) | `@nuxt/image` | IPX provider URLs under `/_ipx/` in `img`/`source` `src`/`srcset`, JS fingerprint `/_ipx/`. | None. |
+| [Nuxt Fonts](https://github.com/nuxt/fonts) | `@nuxt/fonts` | Self-hosted font assets under `/_fonts/` in `link[rel=preload]` and `@font-face` `src`. | None. |
+| [Nuxt Icon](https://github.com/nuxt/icon) | `@nuxt/icon` | Rendered `class="iconify i-<collection>-<name>"` spans (inferred; the `@iconify/vue` `iconify--` form is excluded), JS fingerprints `/api/_nuxt_icon` and `@nuxt/icon`. | None. |
+| [Nuxt UI](https://github.com/nuxt/ui) | `@nuxt/ui` | `<style id="nuxt-ui-colors">` (or `data-nuxt-ui-colors`) injected by the colors plugin, JS fingerprint `nuxt-ui-colors`. | None. |
+| [Vuetify](https://github.com/vuetifyjs/nuxt-module) | `vuetify-nuxt-module` | `<style id="vuetify-theme-stylesheet">` injected by Vuetify (inferred). | None. |
+| [Nuxt Color Mode](https://github.com/nuxt-modules/color-mode) | `@nuxtjs/color-mode` | Inline `window.__NUXT_COLOR_MODE__` script, JS fingerprint `__NUXT_COLOR_MODE__`. | None. |
+| [Nuxt Content](https://github.com/nuxt/content) | `@nuxt/content` | `/__nuxt_content/content/sql_dump.txt` (v3), `/api/_content/cache.json` (v2), JS fingerprints such as `/__nuxt_content/`, `queryCollection` and `/api/_content/`. | None. |
+| [Nuxt i18n](https://github.com/nuxt-modules/i18n) | `@nuxtjs/i18n` | `i18n_redirected` cookie (inferred). Generic `hreflang` alternates are not treated as a module signal. | None. |
+| [Nuxt Security](https://github.com/Baroshem/nuxt-security) | `nuxt-security` | Default security header set such as `X-XSS-Protection: 0`, `Origin-Agent-Cluster: ?1` and `X-Permitted-Cross-Domain-Policies: none` (inferred), SRI `sha384` hashes on `/_nuxt/` assets. | None. |
+| [Pinia](https://github.com/vuejs/pinia) | `@pinia/nuxt` | `pinia` key in the `__NUXT_DATA__` payload (possible; only when a store has SSR state). | None. |
 
 ## License
 
