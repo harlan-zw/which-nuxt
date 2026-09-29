@@ -1,5 +1,6 @@
 import type { AdvisoryOptions, DetectOptions } from './types.ts'
 import net from 'node:net'
+import pkg from '../package.json' with { type: 'json' }
 
 interface FetchWithTimeoutOptions {
   fetch?: typeof fetch
@@ -16,8 +17,8 @@ export interface FetchTextResult {
   headers: Record<string, string>
 }
 
-const DEFAULT_TARGET_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
-const DEFAULT_API_USER_AGENT = 'which-nuxt/0.0.0'
+// Identify honestly so site owners can see who is scanning and filter or contact us.
+const DEFAULT_USER_AGENT = `which-nuxt/${pkg.version} (+https://github.com/harlan-zw/which-nuxt)`
 
 // Node's Happy Eyeballs fallback (IPv6 -> IPv4) uses a 250ms per-attempt timeout by
 // default. For hosts whose IPv6 route blackholes and whose IPv4 connect is slow, that
@@ -67,7 +68,7 @@ export async function fetchTargetText(url: string, options: DetectOptions): Prom
       redirect: 'follow',
       headers: {
         'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'user-agent': options.userAgent || DEFAULT_TARGET_USER_AGENT,
+        'user-agent': options.userAgent || DEFAULT_USER_AGENT,
       },
     },
   }, async response => ({
@@ -97,7 +98,7 @@ export async function fetchRdapJson(url: string, options: DetectOptions): Promis
     init: {
       headers: {
         'accept': 'application/rdap+json, application/json',
-        'user-agent': options.userAgent || DEFAULT_API_USER_AGENT,
+        'user-agent': options.userAgent || DEFAULT_USER_AGENT,
       },
     },
   }, async response => response.ok ? await response.json() : null)
@@ -112,7 +113,7 @@ export async function fetchGithubJson(url: URL, options: AdvisoryOptions): Promi
     init: {
       headers: {
         'accept': 'application/vnd.github+json',
-        'user-agent': options.userAgent || DEFAULT_API_USER_AGENT,
+        'user-agent': options.userAgent || DEFAULT_USER_AGENT,
         ...(options.token ? { authorization: `Bearer ${options.token}` } : {}),
       },
     },

@@ -100,6 +100,20 @@ describe('detectNuxt', () => {
     expect(result.isNuxt).toBe(false)
   })
 
+  it('identifies itself with a which-nuxt User-Agent by default', async () => {
+    const agents: string[] = []
+    await detectNuxt('https://example.com/', {
+      probeEndpoints: false,
+      hosting: false,
+      fetch: async (_input, init) => {
+        agents.push(new Headers(init?.headers).get('user-agent') || '')
+        return new Response('<div id="__nuxt"></div>', { headers: { 'content-type': 'text/html' } })
+      },
+    })
+
+    expect(agents).toEqual([expect.stringMatching(/^which-nuxt\/\d+\.\d+\.\d+ \(\+https:\/\/github\.com\/harlan-zw\/which-nuxt\)$/)])
+  })
+
   it('fetches and scans Nuxt JavaScript chunks', async () => {
     const js = '/** vue v3.5.13 */;/** @nuxt/content v3.7.0 */;class Versions{get nuxt(){return"3.11.2"}};defineNuxtPlugin(()=>{})'
     const result = await detectNuxt({
