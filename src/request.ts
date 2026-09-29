@@ -1,7 +1,7 @@
 import type { AdvisoryOptions, DetectOptions } from './types.ts'
 import net from 'node:net'
 
-export interface FetchWithTimeoutOptions {
+interface FetchWithTimeoutOptions {
   fetch?: typeof fetch
   timeout?: number
   init?: RequestInit
@@ -32,7 +32,13 @@ function ensureHappyEyeballsFallback() {
     set(2500)
 }
 
-export async function fetchWithTimeout(input: Parameters<typeof fetch>[0], options: FetchWithTimeoutOptions = {}) {
+// The timeout covers the body read as well as the headers. A server that sends headers
+// and then stalls the body would otherwise hold the scan open with no limit.
+async function fetchWithTimeout<T>(
+  input: Parameters<typeof fetch>[0],
+  options: FetchWithTimeoutOptions,
+  read: (response: Response) => Promise<T>,
+): Promise<T> {
   const fetcher = options.fetch || globalThis.fetch
   if (!options.fetch)
     options.beforeGlobalFetch?.()
@@ -41,10 +47,11 @@ export async function fetchWithTimeout(input: Parameters<typeof fetch>[0], optio
   const timer = setTimeout(() => controller.abort(), options.timeout ?? 8000)
 
   try {
-    return await fetcher(input, {
+    const response = await fetcher(input, {
       ...options.init,
       signal: controller.signal,
     })
+    return await read(response)
   }
   finally {
     clearTimeout(timer)
@@ -52,7 +59,7 @@ export async function fetchWithTimeout(input: Parameters<typeof fetch>[0], optio
 }
 
 export async function fetchTargetText(url: string, options: DetectOptions): Promise<FetchTextResult> {
-  const response = await fetchWithTimeout(url, {
+  return await fetchWithTimeout(url, {
     fetch: options.fetch,
     timeout: options.timeout ?? 8000,
     beforeGlobalFetch: ensureHappyEyeballsFallback,
@@ -63,16 +70,13 @@ export async function fetchTargetText(url: string, options: DetectOptions): Prom
         'user-agent': options.userAgent || DEFAULT_TARGET_USER_AGENT,
       },
     },
-  })
-
-  const body = await response.text()
-  return {
-    body,
+  }, async response => ({
+    body: await response.text(),
     finalUrl: response.url || url,
     status: response.status,
     contentType: response.headers.get('content-type'),
     headers: Object.fromEntries(response.headers.entries()),
-  }
+  }))
 }
 
 // We download the full script body so the precise Nuxt version getter, which is
@@ -87,7 +91,7 @@ export async function fetchTargetScriptText(url: string, options: DetectOptions)
 }
 
 export async function fetchRdapJson(url: string, options: DetectOptions): Promise<unknown | null> {
-  const response = await fetchWithTimeout(url, {
+  return await fetchWithTimeout(url, {
     fetch: options.fetch,
     timeout: options.timeout ?? 8000,
     init: {
@@ -96,15 +100,12 @@ export async function fetchRdapJson(url: string, options: DetectOptions): Promis
         'user-agent': options.userAgent || DEFAULT_API_USER_AGENT,
       },
     },
-  })
-
-  if (!response.ok)
-    return null
-
-  return await response.json()
+  }, async response => response.ok ? await response.json() : null)
 }
 
-export async function fetchGithubApi(url: URL, options: AdvisoryOptions): Promise<Response> {
+export type GithubJsonResult = { ok: true, data: unknown } | { ok: false, status: number }
+
+export async function fetchGithubJson(url: URL, options: AdvisoryOptions): Promise<GithubJsonResult> {
   return await fetchWithTimeout(url, {
     fetch: options.fetch,
     timeout: options.timeout ?? 10000,
@@ -115,5 +116,7 @@ export async function fetchGithubApi(url: URL, options: AdvisoryOptions): Promis
         ...(options.token ? { authorization: `Bearer ${options.token}` } : {}),
       },
     },
-  })
+  }, async response => response.ok
+    ? { ok: true, data: await response.json() }
+    : { ok: false, status: response.status })
 }

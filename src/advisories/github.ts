@@ -1,5 +1,5 @@
 import type { AdvisoryOptions, GithubAdvisory } from '../types.ts'
-import { fetchGithubApi } from '../request.ts'
+import { fetchGithubJson } from '../request.ts'
 
 export async function fetchGithubAdvisories(packageName: string, options: AdvisoryOptions = {}): Promise<GithubAdvisory[]> {
   const url = new URL('https://api.github.com/advisories')
@@ -7,10 +7,10 @@ export async function fetchGithubAdvisories(packageName: string, options: Adviso
   url.searchParams.set('affects', packageName)
   url.searchParams.set('per_page', '100')
 
-  const response = await fetchGithubApi(url, options)
+  const result = await fetchGithubJson(url, options)
 
-  if (!response.ok)
-    throw new Error(`GitHub advisory request failed for ${packageName}: ${response.status}`)
+  if (!result.ok)
+    throw new Error(`GitHub advisory request failed for ${packageName}: ${result.status}`)
 
-  return await response.json() as GithubAdvisory[]
+  return result.data as GithubAdvisory[]
 }
