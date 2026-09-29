@@ -1,7 +1,7 @@
 {
   "name": "which-nuxt",
   "type": "module",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "packageManager": "pnpm@11.5.2",
   "description": "Detect Nuxt, Vue and Nuxt-related package versions from public Nuxt sites.",
   "author": {
