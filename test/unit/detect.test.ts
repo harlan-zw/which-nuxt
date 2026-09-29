@@ -121,6 +121,32 @@ describe('detectNuxt', () => {
     expect(result.signals.map(signal => signal.name)).toContain('js:nuxt-getter-version')
   })
 
+  it('applies the timeout to a response body that stalls after the headers', async () => {
+    // Mirrors real fetch: headers arrive, then the body only settles when the signal aborts.
+    function stalledBody(signal: AbortSignal | null | undefined) {
+      return new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode('/** vue v3.5.13 */'))
+          signal?.addEventListener('abort', () => controller.error(signal.reason))
+        },
+      })
+    }
+
+    const result = await detectNuxt({
+      html: '<div id="__nuxt"></div><script type="module" src="/_nuxt/app.js"></script>',
+      url: 'https://example.com/',
+    }, {
+      probeEndpoints: false,
+      hosting: false,
+      timeout: 50,
+      fetch: async (_input, init) => new Response(stalledBody(init?.signal), {
+        headers: { 'content-type': 'application/javascript' },
+      }),
+    })
+
+    expect(result.errors).toEqual([expect.stringContaining('https://example.com/_nuxt/app.js')])
+  }, 1000)
+
   it('detects Nuxt SEO modules and versions from public endpoints', async () => {
     const responses: Record<string, string> = {
       'https://example.com/robots.txt': '# START nuxt-robots (indexable)\nUser-agent: *\n# END nuxt-robots',
