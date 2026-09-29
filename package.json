@@ -63,6 +63,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:attw": "attw --pack --profile esm-only",
+    "release": "pnpm build && pnpm exec bumpp",
     "prepack": "pnpm run build"
   },
   "dependencies": {
@@ -81,6 +82,7 @@
     "@antfu/eslint-config": "catalog:",
     "@arethetypeswrong/cli": "catalog:",
     "@types/node": "catalog:",
+    "bumpp": "catalog:",
     "eslint": "catalog:",
     "obuild": "catalog:",
     "typescript": "catalog:",
