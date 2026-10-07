@@ -1,6 +1,6 @@
 ---
 name: which-nuxt
-description: Detects the Nuxt, Vue and Nuxt module versions a public site runs, and matches them against GitHub security advisories, with the which-nuxt CLI and library. Use when a task mentions which-nuxt, whichnuxt, detectNuxt, checkAdvisories, scanHtml, scanJs, moduleDetectors or a module preset, fingerprinting a Nuxt site, gating CI on Nuxt advisories, or a scan that says "Nuxt not detected" for a site that runs Nuxt.
+description: Detects the Nuxt, Vue and Nuxt module versions a public site runs and matches them against GitHub security advisories, with the which-nuxt CLI and library. Use when a task mentions which-nuxt, whichnuxt, detectNuxt, checkAdvisories, scanHtml, scanJs, moduleDetectors or a module preset, fingerprinting a Nuxt site, or gating CI on Nuxt advisories, or when a scan reports no Nuxt on a site that runs Nuxt.
 ---
 
 # which-nuxt
