@@ -18,11 +18,11 @@
 
 ## Features
 
-- 🔍 **Versions from a URL**: See the exact Nuxt and Vue versions a site runs, with no access to its code.
+- 🔍 **Versions from a URL**: See the exact Nuxt version a site runs, and the Vue version when a bundled chunk exposes it, with no access to its code.
 - 🛡️ **Advisory check**: Find out which GitHub security advisories affect those versions. An inferred version range gives a possible match, not a confirmed one.
 - 🧩 **20 Nuxt modules**: Spot Nuxt UI, Nuxt Content, i18n, the Nuxt SEO modules and more. Each match says how sure it is.
 - 🌐 **Hosting and domain age**: Learn which platform serves the site and, if you ask, how old its domain is.
-- 🕷️ **Built for crawlers**: Already have the HTML? Scan it with no extra requests, and bundle only the module presets you use.
+- 🕷️ **Built for crawlers**: Already have the HTML? Scan it with no extra requests, and load only the module presets you use.
 
 ## CLI
 
@@ -30,6 +30,8 @@
 # Scan a site
 npx which-nuxt https://nuxt.com
 ```
+
+A bare hostname such as `nuxt.com` is scanned as `https://nuxt.com`.
 
 The `whichnuxt` alias runs the same command.
 
@@ -60,6 +62,15 @@ which-nuxt https://nuxt.com --age --github-token "$GITHUB_TOKEN"
 | `--github-token <token>` | GitHub token for advisory API requests. Defaults to `GITHUB_TOKEN`. |
 | `--user-agent <agent>` | User-Agent for requests to the target site. |
 
+### Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | The scan completed and no advisory matched, or the advisory check was skipped. |
+| `1` | Usage error, such as a bad `--timeout` value. |
+| `2` | The scan is incomplete: one or more scan steps failed. |
+| `3` | One or more advisories match the detected versions. |
+
 ### What it requests
 
 One scan fetches the page, up to 4 JavaScript chunks, and a set of public endpoints such as `/_payload.json`, `/_nuxt/builds/latest.json` and module debug routes. The advisory check calls the GitHub API. `--age` adds one RDAP lookup. Each `--no-*` flag turns its step off.
@@ -86,7 +97,7 @@ Every result carries a confidence score. `checkAdvisories()` reports an exact ma
 
 ### Module presets
 
-By default `detectNuxt()` runs every bundled module mapping. Import one preset to ship less code:
+By default `detectNuxt()` runs every bundled module mapping. Pass one preset and the others never load at runtime:
 
 ```ts
 import { detectNuxt } from 'which-nuxt'
@@ -96,6 +107,8 @@ const detected = await detectNuxt('https://nuxt.com', {
   moduleDetectors: officialNuxtModuleDetectors,
 })
 ```
+
+This trims runtime work, not bundle size: `detectNuxt()` keeps a lazy import of the default presets, so a bundler still emits every preset as a lazy chunk. For a smaller bundle, scan the HTML and JavaScript yourself with `which-nuxt/scanners`.
 
 | Preset | Import | Covers |
 | --- | --- | --- |
@@ -119,21 +132,22 @@ const entry = scanJs(entryChunk, { moduleDetectors: officialNuxtModuleDetectors 
 
 ### Cache
 
-Pass an `unstorage` instance to cache the full detection result:
+Pass an `unstorage` instance to cache the full detection result. Install `unstorage` in your project first: `pnpm add unstorage`.
 
 ```ts
+import type { DetectCacheArtifact } from 'which-nuxt'
 import { createStorage } from 'unstorage'
 import memoryDriver from 'unstorage/drivers/memory'
 import { detectNuxt } from 'which-nuxt'
 
-const cache = createStorage({ driver: memoryDriver() })
+const cache = createStorage<DetectCacheArtifact>({ driver: memoryDriver() })
 
 const first = await detectNuxt('https://nuxt.com', { cache })
 const cached = await detectNuxt('https://nuxt.com', { cache })
 const fresh = await detectNuxt('https://nuxt.com', { cache, cacheBust: true })
 ```
 
-`cacheMaxAge` expires entries. `cacheNamespace` and `cacheKey` control the storage keys.
+`cacheMaxAge` expires entries after this many milliseconds. `cacheNamespace` and `cacheKey` control the storage keys. An incomplete scan is not cached, so the next call retries the failed steps.
 
 ## Supported Module Mappings
 
