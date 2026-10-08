@@ -10,9 +10,19 @@ import { scanJs } from './js.ts'
 import { createDetectionEvidence, NUXT_CONFIDENCE_THRESHOLD, signalConfidence } from './signals.ts'
 
 const HTTP_URL_RE = /^https?:\/\//i
+const HOSTNAME_RE = /^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(?::\d{1,5})?(?:[/?#]\S*)?$/i
+const LOCALHOST_RE = /^localhost(?::\d{1,5})?(?:[/?#]\S*)?$/i
 
 function isUrl(value: string) {
   return HTTP_URL_RE.test(value)
+}
+
+function isHostname(value: string) {
+  return HOSTNAME_RE.test(value) || LOCALHOST_RE.test(value)
+}
+
+function lowerCaseHeaders(headers: Record<string, string>) {
+  return Object.fromEntries(Object.entries(headers).map(([name, value]) => [name.toLowerCase(), value]))
 }
 
 async function resolveInput(input: DetectInput, options: DetectOptions) {
@@ -21,12 +31,15 @@ async function resolveInput(input: DetectInput, options: DetectOptions) {
       html: input.html,
       url: input.url || options.url || null,
       finalUrl: input.finalUrl || input.url || options.url || null,
-      headers: input.headers || {},
+      headers: lowerCaseHeaders(input.headers || {}),
       errors: [] as string[],
     }
   }
 
-  const url = input instanceof URL ? input.toString() : input
+  const requested = input instanceof URL ? input.toString() : input
+  const url = typeof requested === 'string' && !isUrl(requested) && isHostname(requested)
+    ? `https://${requested}`
+    : requested
   if (typeof url === 'string' && isUrl(url)) {
     const response = await fetchTargetText(url, options)
     return {
@@ -205,7 +218,7 @@ export async function detectNuxt(input: DetectInput, detectOptions: DetectOption
     errors,
   }
 
-  if (options.cache && cacheKey)
+  if (options.cache && cacheKey && !result.incomplete)
     await options.cache.setItem(cacheKey, createDetectCacheArtifact(result))
 
   return result

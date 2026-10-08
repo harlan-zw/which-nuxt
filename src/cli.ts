@@ -65,7 +65,7 @@ export const main = defineCommand({
   args: {
     'target': {
       type: 'positional',
-      description: 'URL or HTML to scan.',
+      description: 'URL, hostname or HTML to scan.',
       required: true,
     },
     'json': {
@@ -122,8 +122,17 @@ export const main = defineCommand({
     },
   },
   async run({ args }) {
-    const timeout = parsePositiveInteger(stringArg(args.timeout), 8000, '--timeout')
-    const maxJsRequests = parsePositiveInteger(stringArg(args.maxJsRequests), 4, '--max-js-requests')
+    let timeout: number
+    let maxJsRequests: number
+    try {
+      timeout = parsePositiveInteger(stringArg(args.timeout), 8000, '--timeout')
+      maxJsRequests = parsePositiveInteger(stringArg(args.maxJsRequests), 4, '--max-js-requests')
+    }
+    catch (error) {
+      consola.error((error as Error).message)
+      process.exitCode = 1
+      return
+    }
     const githubToken = stringArg(args.githubToken) || process.env.GITHUB_TOKEN
 
     const detected = await detectNuxt(args.target, {
@@ -141,6 +150,11 @@ export const main = defineCommand({
           timeout,
         })
       : null
+
+    if (advisories?.matches.length)
+      process.exitCode = 3
+    else if (detected.errors.length > 0)
+      process.exitCode = 2
 
     if (args.json) {
       process.stdout.write(`${JSON.stringify({ detected, advisories }, null, 2)}\n`)
@@ -178,15 +192,15 @@ export const main = defineCommand({
     }
 
     if (advisories) {
-      if (advisories.matches.length === 0) {
-        consola.success('No advisories matched exact detected package versions.')
-      }
-      else {
+      if (advisories.matches.length > 0) {
         consola.warn(`${advisories.matches.length} advisory match(es):`)
         for (const match of advisories.matches) {
           const patched = match.firstPatchedVersion ? `, patched in ${match.firstPatchedVersion}` : ''
           consola.warn(`${advisoryTarget(match)}: ${match.severity} ${match.ghsaId}${patched} - ${match.summary}`)
         }
+      }
+      else if (!advisories.incomplete) {
+        consola.success('No advisories matched exact detected package versions.')
       }
 
       if (advisories.errors.length > 0) {
