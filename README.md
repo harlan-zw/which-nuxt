@@ -3,8 +3,18 @@
 [![npm version](https://img.shields.io/npm/v/which-nuxt?color=yellow)](https://npmjs.com/package/which-nuxt)
 [![npm downloads](https://img.shields.io/npm/dm/which-nuxt?color=yellow)](https://npm.chart.dev/which-nuxt)
 [![license](https://img.shields.io/github/license/harlan-zw/which-nuxt?color=yellow)](https://github.com/harlan-zw/which-nuxt/blob/main/LICENSE.md)
+<a href="https://skilld.dev/gh/harlan-zw/which-nuxt">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://skilld.dev/b/harlan-zw/which-nuxt?theme=dark">
+    <source media="(prefers-color-scheme: light)" srcset="https://skilld.dev/b/harlan-zw/which-nuxt?theme=light">
+    <img alt="Skill repository on skilld.dev" src="https://skilld.dev/b/harlan-zw/which-nuxt?theme=light">
+  </picture>
+</a>
 
 > 🔍 Point it at a URL. Get back the Nuxt and Vue versions, the Nuxt modules, the host, and any GitHub advisories that match.
+
+> [!TIP]
+> Using an AI agent? Get the which-nuxt Skill on [skilld.dev/gh/harlan-zw/which-nuxt](https://skilld.dev/gh/harlan-zw/which-nuxt).
 
 <p align="center">
 <table>
