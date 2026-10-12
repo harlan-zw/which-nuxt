@@ -278,4 +278,61 @@ describe('detectNuxt', () => {
     expect(second.isNuxt).toBe(true)
     expect(calls).toBe(1)
   })
+
+  it('treats a bare hostname as an https URL', async () => {
+    const requested: string[] = []
+    const result = await detectNuxt('example.com', {
+      probeEndpoints: false,
+      hosting: false,
+      fetch: async (input) => {
+        requested.push(String(input))
+        return new Response('<div id="__nuxt"></div><script id="__NUXT_DATA__">[]</script>', {
+          headers: { 'content-type': 'text/html' },
+        })
+      },
+    })
+
+    expect(requested).toEqual(['https://example.com'])
+    expect(result.isNuxt).toBe(true)
+    expect(result.url).toBe('https://example.com')
+  })
+
+  it('lowercases input header keys for hosting detection', async () => {
+    const result = await detectNuxt({
+      html: '<div id="__nuxt"></div><script id="__NUXT_DATA__">[]</script>',
+      url: 'https://example.com/',
+      headers: { 'CF-Ray': 'abc' },
+    }, {
+      scanJs: false,
+      probeEndpoints: false,
+    })
+
+    expect(result.hosting?.provider).toBe('Cloudflare')
+  })
+
+  it('does not cache an incomplete scan so the failed chunk request is retried', async () => {
+    const cache = createStorage<DetectCacheArtifact>({ driver: memoryDriver() })
+    const html = '<div id="__nuxt"></div><script type="module" src="/_nuxt/entry.js"></script>'
+    let chunkCalls = 0
+    const fetchMock: typeof globalThis.fetch = async (input) => {
+      const url = String(input)
+      if (url.endsWith('/_nuxt/entry.js')) {
+        chunkCalls += 1
+        if (chunkCalls === 1)
+          throw new Error('This operation was aborted')
+        return new Response('const n={versions:{get nuxt(){return`4.1.2`}}}', {
+          headers: { 'content-type': 'application/javascript' },
+        })
+      }
+      return new Response(html, { headers: { 'content-type': 'text/html' } })
+    }
+
+    const first = await detectNuxt('https://example.com/', { cache, fetch: fetchMock, probeEndpoints: false })
+    const second = await detectNuxt('https://example.com/', { cache, fetch: fetchMock, probeEndpoints: false })
+
+    expect(first.incomplete).toBe(true)
+    expect(second.incomplete).toBe(false)
+    expect(second.cache?.hit).toBe(false)
+    expect(chunkCalls).toBe(2)
+  })
 })
