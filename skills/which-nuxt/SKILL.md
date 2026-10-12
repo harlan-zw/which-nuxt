@@ -49,7 +49,7 @@ const unchecked = advisories.packages.filter(pkg => pkg.skipped).map(pkg => pkg.
 if (unchecked.length > 0)
   console.warn(`No exact version, not checked: ${unchecked.join(', ')}`)
 
-const serious = advisories.matches.filter(match => ['high', 'critical'].includes(match.severity))
+const serious = advisories.matches.filter(match => ['high', 'critical'].includes(match.severity.toLowerCase()))
 for (const match of serious)
   console.error(`${match.packageName}@${match.version ?? match.versionRange}: ${match.severity} ${match.ghsaId} ${match.url}`)
 if (serious.length > 0)
