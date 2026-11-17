@@ -1,6 +1,11 @@
 import { defineBuildConfig } from 'obuild/config'
 
 export default defineBuildConfig({
+  hooks: {
+    rolldownOutput(output) {
+      output.sourcemap = false
+    },
+  },
   entries: [
     {
       type: 'bundle',
